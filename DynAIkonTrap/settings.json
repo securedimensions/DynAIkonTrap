@@ -1,0 +1,35 @@
+{
+    "camera": {
+        "framerate": 20,
+        "resolution": [
+            640,
+            480
+        ]
+    },
+    "filter": {
+        "motion": {
+            "small_threshold": 10,
+            "sotv_threshold": 319.9398513079542,
+            "iir_cutoff_hz": 0.9920634920634921,
+            "iir_order": 8,
+            "iir_attenuation": 20
+        },
+        "animal": {
+            "threshold": 0.1
+        },
+        "motion_queue": {
+            "smoothing_factor": 1.008,
+            "max_sequence_period_s": 10.0
+        }
+    },
+    "sensor": {
+        "port": "/dev/ttyUSB0",
+        "baud": 57600,
+        "interval_s": 30.0
+    },
+    "sender": {
+        "server": "http://10.42.0.1:8080/trap/",
+        "POST": "capture/",
+        "device_id": 0
+    }
+}
