@@ -1,6 +1,6 @@
 from json import dump
 
-from DynAikonTrap.settings import Settings, FilterSettings
+from DynAIkonTrap.settings import Settings, FilterSettings
 
 
 def setter(name, setting):
@@ -118,5 +118,5 @@ def serialise(obj):
     return obj.__dict__
 
 
-with open('DynAikonTrap/settings.json', 'w') as f:
+with open('DynAIkonTrap/settings.json', 'w') as f:
     dump(settings, f, default=serialise)

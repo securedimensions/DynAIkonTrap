@@ -1,3 +1,22 @@
+"""
+An interface for sending animal frames to a server. The `Sender` combines a frame with the most appropriate sensor log and sends these together via a HTTP POST request to the specified server.
+
+The current server API is:\n
+- Path: <server>/trap/capture\n
+- Type: POST\n
+- Files: The image frame encoded as JPEG\n
+- Data: meta-data for the image reporesented in the following JSON:
+```json
+meta = {
+            'trap_id': self._device_id,
+            'time': time,
+            'temperature': temp,
+            'pressure': press,
+            'brightness': light,
+            'humidity': humidity,
+        }
+```
+"""
 from requests import post
 from requests.exceptions import HTTPError, ConnectionError
 import threading
@@ -5,10 +24,10 @@ from multiprocessing import Process, Queue
 from queue import Empty
 from typing import Tuple
 
-from DynAikonTrap.filtering import Filter
-from DynAikonTrap.sensor import SensorLogs
-from DynAikonTrap.logging import get_logger
-from DynAikonTrap.settings import SenderSettings
+from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.sensor import SensorLogs
+from DynAIkonTrap.logging import get_logger
+from DynAIkonTrap.settings import SenderSettings
 
 logger = get_logger(__name__)
 
@@ -49,9 +68,8 @@ class Sender:
                 )
 
     def send(self, **kwargs):
-        """Queue the specified data for sending
-        Available keyword arguments:
-        `image`, `time`, `temperature`, `pressure`, `light`.
+        """Queue the specified data for sending. Available keyword arguments:
+        `image`, `time`, `temperature`, `pressure`, `light`. Others will simply be ignored as they are not implemented. THis may change in the future, so that all are sent in the metadata.
         """
         image = kwargs.get('image', None)
         time = kwargs.get('time', None)
@@ -69,7 +87,7 @@ class Sender:
             'humidity': humidity,
         }
         files_dict = {'file': ('image', image, 'image/jpeg')}
-        logger.info('Sending capture, meta = {}'.format(meta))
+        logger.debug('Sending capture, meta = {}'.format(meta))
         try:
             r = post(self._server + self._path_POST, data=meta, files=files_dict)
         except HTTPError as e:

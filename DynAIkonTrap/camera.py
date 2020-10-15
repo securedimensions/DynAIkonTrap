@@ -1,19 +1,34 @@
+"""
+Provides a simplified interface to the `PiCamera` library class. The `Camera` class gives provides the `Frame`s from the camera's stream via a queue. Initialising the `Camera` takes care of setting up the necessary motion vector and image streams under the hood.
+
+A `Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
+"""
 from time import sleep, time
 import numpy as np
 from multiprocessing import Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from typing import Tuple
-from picamera import PiCamera
-from picamera.array import PiMotionAnalysis
 
-from DynAikonTrap.settings import CameraSettings
-from DynAikonTrap.logging import get_logger
+try:
+    from picamera import PiCamera
+    from picamera.array import PiMotionAnalysis
+except OSError:
+    # Ignore error that occurs when running pdoc3
+    class PiMotionAnalysis:
+        pass
+
+
+from DynAIkonTrap.settings import CameraSettings
+from DynAIkonTrap.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class Frame:
+    """A frame from the camera consisting of motion and image information as well as the time of capture.
+    """
     image: bytes
     motion: np.ndarray
     timestamp: float
@@ -54,7 +69,11 @@ class ImageReader:
 
 
 class Camera:
+    """Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system."""
+
     def __init__(self, settings: CameraSettings):
+        """Takes a `CameraSettings` object to initialise and start the camera hardware."""
+
         self.resolution = settings.resolution
         self.framerate = settings.framerate
         self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
@@ -73,9 +92,19 @@ class Camera:
         logger.debug('Camera started')
 
     def get(self) -> Frame:
+        """Retrieve the next frame from the camera
+
+        Returns:
+            Frame: A frame from the camera video stream
+        """
         return self._output.get_nowait()
 
     def empty(self) -> bool:
+        """Indicates if the queue of buffered frames is empty
+
+        Returns:
+            bool: `True` if there are no more frames, otherwise `False`
+        """
         return self._output.empty()
 
     def close(self):
@@ -83,16 +112,18 @@ class Camera:
 
 
 class MockCamera(Camera):
+    """A mock camera to be used only for testing. This is expected to be removed in the future."""
+
     def __init__(self, **kwargs):
         self.resolution = (640, 480)
         self.framerate = 20
         self._output: QueueType[Frame] = Queue()
-        from DynAikonTrap.tester import Tester, load_pickle
+        from DynAIkonTrap.tester import Tester, load_pickle
         from multiprocessing import Process
         from queue import Full
 
-        data = load_pickle('DynAikonTrap/dog2.pk')
-        truth = load_pickle('DynAikonTrap/dog2.pk.truth')
+        data = load_pickle('DynAIkonTrap/dog2.pk')
+        truth = load_pickle('DynAIkonTrap/dog2.pk.truth')
 
         # tester = Tester(data, truth)
 

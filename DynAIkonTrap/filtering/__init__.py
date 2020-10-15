@@ -1,1 +1,1 @@
-from DynAikonTrap.filtering.filtering import Filter
+from DynAIkonTrap.filtering.filtering import Filter
