@@ -1,23 +1,42 @@
+"""
+This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the `AnimalFilter` is a JPEG image and the output a confidence in the image containing an animal.
+
+A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.
+"""
 import cv2
 import numpy as np
 
-from DynAikonTrap.settings import AnimalFilterSettings
+from DynAIkonTrap.settings import AnimalFilterSettings
 
 
 class AnimalFilter:
+    """Animal filter stage to indicate if a frame contains an animal
+    """
     def __init__(self, settings: AnimalFilterSettings):
+        """
+        Args:
+            settings (AnimalFilterSettings): Settings for the filter
+        """
         self.threshold = settings.threshold
 
         self.model = cv2.dnn.readNet(
-            'DynAikonTrap/filtering/yolo_animal_detector.weights',
-            'DynAikonTrap/filtering/yolo_animal_detector.cfg',
+            'DynAIkonTrap/filtering/yolo_animal_detector.weights',
+            'DynAIkonTrap/filtering/yolo_animal_detector.cfg',
         )
         layer_names = self.model.getLayerNames()
         self.output_layers = [
             layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
         ]
 
-    def run_raw(self, image: np.ndarray) -> float:
+    def run_raw(self, image: bytes) -> float:
+        """Run the animal filter on the image to give a confidence that the image frame contains an animal
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            float: Confidence in the output containing an animal as a decimal fraction
+        """
         decoded_image = cv2.resize(
             cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
         )
@@ -31,5 +50,13 @@ class AnimalFilter:
         _, _, _, _, _, confidence1 = output[1].max(axis=0)
         return max(confidence0, confidence1)
 
-    def run(self, image: np.ndarray) -> bool:
+    def run(self, image: bytes) -> bool:
+        """The same as `run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
+        """
         return self.run_raw(image) >= self.threshold

@@ -1,10 +1,10 @@
 from signal import signal, SIGINT
 
-from DynAikonTrap.camera import Camera  # , MockCamera
-from DynAikonTrap.filtering import Filter
-from DynAikonTrap.comms import Sender
-from DynAikonTrap.sensor import SensorLogs
-from DynAikonTrap.settings import load_settings
+from DynAIkonTrap.camera import Camera  # , MockCamera
+from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.comms import Sender
+from DynAIkonTrap.sensor import SensorLogs
+from DynAIkonTrap.settings import load_settings
 
 
 # Make Ctrl-C quit gracefully

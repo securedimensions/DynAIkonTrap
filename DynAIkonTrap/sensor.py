@@ -1,3 +1,6 @@
+"""
+An interface to the sensor board. The logs from sensor readings are taken by the `SensorLogs` and can be accessed via the `SensorLogger.get()` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
+"""
 from typing import Union
 from typing import OrderedDict as OrderedDictType
 from multiprocessing import Process, Queue
@@ -8,30 +11,41 @@ from serial import Serial, SerialException
 from collections import OrderedDict
 from bisect import bisect_left
 
-from DynAikonTrap.logging import get_logger
-from DynAikonTrap.settings import SensorSettings
+from DynAIkonTrap.logging import get_logger
+from DynAIkonTrap.settings import SensorSettings
 
 logger = get_logger(__name__)
 
 
 @dataclass
 class Reading:
+    """Representation of a sensor reading, which has a value and units of measurement"""
+
     value: float
     units: str
 
 
 @dataclass
 class SensorLog:
+    """A log of sensor readings taken at a given moment in time. Time is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by `None` in the log."""
+
     timestamp: float
     brightness: 'Union[Reading, type(None)]'
-    humidity: 'Reading[Reading, type(None)]'
-    pressure: 'Reading[Reading, type(None)]'
+    humidity: 'Union[Reading, type(None)]'
+    pressure: 'Union[Reading, type(None)]'
 
 
 class Sensor:
-    """Provides simple interface to the weather sensor board"""
+    """Provides an interface to the weather sensor board"""
 
     def __init__(self, port: str, baud: int):
+        """
+        Args:
+            port (str): The path to the port to which the sensor is attached, most likely `'/dev/ttyUSB0'`
+            baud (int): Baudrate to use in communication with the sensor board
+        Raises:
+            SerialException: If the sensor board could not be found
+        """
         try:
             self._ser = Serial(port, baud, timeout=0)
         except SerialException:
@@ -64,13 +78,26 @@ class Sensor:
         self._humidity = Reading(float(split_raw_data[18][:-1]), 'RH%')
         self._pressure = Reading(float(split_raw_data[20]), 'mbar')
 
-    def read(self):
+    def read(self) -> SensorLog:
+        """Triggers the taking and logging of sensor readings
+
+        Returns:
+            SensorLog: Readings for all sensors
+        """
         self._retrieve_latest_data()
         return SensorLog(time(), self._brightness, self._humidity, self._pressure)
 
 
 class SensorLogs:
+    """A data structure to hold all sensor logs. The class includes a dedicated process to perform the sensor logging and handle sensor log lookup requests."""
+
     def __init__(self, settings: SensorSettings):
+        """
+        Args:
+            settings (SensorSettings): Settings for the sensor logger
+        Raises:
+            SerialException: If the sensor board could not be found
+        """
         self._storage: OrderedDictType[float, SensorLog] = OrderedDict()
         self._query_queue: QueueType[float] = Queue()
         self._results_queue: QueueType[SensorLog] = Queue()
@@ -97,7 +124,7 @@ class SensorLogs:
     def _lookup(self, timestamp: float) -> SensorLog:
         if self._sensor is None:
             return None
-        
+
         keys = list(self._storage.keys())
         i = bisect_left(keys, timestamp) - 1
 
@@ -132,8 +159,17 @@ class SensorLogs:
                 self._log_now()
                 self._last_logged = time()
 
-    def get(self, timestamp: float) -> SensorLog:
+    def get(self, timestamp: float) -> Union[SensorLog, type(None)]:
         """Get the log closest to the given timestamp and return it.
-        Also deletes logs older than this timestamp."""
+
+        Also deletes logs older than this timestamp.
+
+        Args:
+            timestamp (float): Timestamp of the image for which sensor readings are to be retrieved
+
+        Returns:
+            Union[SensorLog, None]: The retrieved log of sensor readings or `None` if none could be retrieved.
+        """
+
         self._query_queue.put(timestamp)
         return self._results_queue.get()
