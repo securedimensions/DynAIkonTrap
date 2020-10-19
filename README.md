@@ -9,6 +9,9 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
 - [Tuning the System](#tuning-the-system)
 - [Wiki](https://gitlab.dynaikon.com/c4c/dynaikontrap/-/wikis/)
     - Full documentation
+- [Source code documentation](docs/html)
+    - You will need to view these files via your browser after downloading
+    - GitLab does not actually render the HTML pages
 
 ## Getting Started
 Once you have a Raspberry Pi with a camera set up, just run the setup script:
