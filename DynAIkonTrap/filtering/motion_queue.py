@@ -36,13 +36,14 @@ The modularity here means Different implementations for animal filtering and mot
 from dataclasses import dataclass
 from typing import Any, List, Callable
 from enum import Enum
-from multiprocessing import Process, Queue, Semaphore
+from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from time import time
 
 from DynAIkonTrap.camera import Frame
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import MotionQueueSettings
+from DynAIkonTrap.filtering.animal import AnimalFilter
 
 logger = get_logger(__name__)
 
@@ -168,15 +169,15 @@ class MotionQueue:
     def __init__(
         self,
         settings: MotionQueueSettings,
-        animal_detector: 'DynAIkonTrap.filtering.animal.AnimalFilter',
-        output_callback: 'Callable[List[Frame], Any]',
+        animal_detector: AnimalFilter,
+        output_callback: 'Callable[[List[Frame]], Any]',
         framerate: int,
     ):
         """
         Args:
             settings (MotionQueueSettings): Settings for the queue
             animal_detector (AnimalFilter): An initialised animal filter to apply to frames in the motion sequences
-            output_callback (Callable[List[Frame], Any]): Function to call with filtered frames
+            output_callback (Callable[[List[Frame]], Any]): Function to call with filtered frames
             framerate (int): Framerate at which the frames were recorded
         """
         self._smoothing_len = int((settings.max_sequence_period_s * framerate) / 2)
@@ -186,7 +187,6 @@ class MotionQueue:
         self._animal_detector = animal_detector
         self._output_callback = output_callback
 
-        self._sem = Semaphore(0)
         self._process = Process(target=self._process_queue, daemon=True)
         self._process.start()
 
@@ -207,18 +207,16 @@ class MotionQueue:
         if current_len > 0:
             self._queue.put(self._current_sequence)
             self._current_sequence = MotionSequence(self._smoothing_len)
-            self._sem.release()
             logger.info(
                 'End of motion; motion sequence queued ({} frames will take <=~{:.0f}s)'.format(
                     current_len,
-                    current_len / 0.5,  # 0.5 FPS
+                    current_len / 0.3,  # 0.3 FPS is the slowest observed
                 )
             )
 
     def _process_queue(self):
-        while True:
 
-            self._sem.acquire()
+        while True:
 
             sequence = self._queue.get()
 

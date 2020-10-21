@@ -3,6 +3,7 @@ Provides a simplified interface to the `PiCamera` library class. The `Camera` cl
 
 A `Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
 """
+from queue import Empty
 from time import sleep, time
 import numpy as np
 from multiprocessing import Queue
@@ -97,7 +98,10 @@ class Camera:
         Returns:
             Frame: A frame from the camera video stream
         """
-        return self._output.get_nowait()
+        try:
+            return self._output.get_nowait()
+        except Empty:
+            logger.error('No frames available from Camera')
 
     def empty(self) -> bool:
         """Indicates if the queue of buffered frames is empty
