@@ -114,7 +114,7 @@ while True:
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue"><code class="flex name class">
 <span>class <span class="ident">MotionQueue</span></span>
-<span>(</span><span>settings: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="../settings.html#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a>, animal_detector: <a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="animal.html#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a>, output_callback: Callable[List[Frame], Any], framerate: int)</span>
+<span>(</span><span>settings: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="../settings.html#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a>, animal_detector: <a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="animal.html#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a>, output_callback: Callable[[List[Frame]], Any], framerate: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A queue for sequences of motion to be analysed by the animal filter</p>
@@ -124,7 +124,7 @@ while True:
 <dd>Settings for the queue</dd>
 <dt><strong><code>animal_detector</code></strong> :&ensp;<code>AnimalFilter</code></dt>
 <dd>An initialised animal filter to apply to frames in the motion sequences</dd>
-<dt><strong><code>output_callback</code></strong> :&ensp;<code>Callable[List[Frame], Any]</code></dt>
+<dt><strong><code>output_callback</code></strong> :&ensp;<code>Callable[[List[Frame]], Any]</code></dt>
 <dd>Function to call with filtered frames</dd>
 <dt><strong><code>framerate</code></strong> :&ensp;<code>int</code></dt>
 <dd>Framerate at which the frames were recorded</dd>

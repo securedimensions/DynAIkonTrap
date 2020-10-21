@@ -69,7 +69,7 @@ class Sender:
 
     def send(self, **kwargs):
         """Queue the specified data for sending. Available keyword arguments:
-        `image`, `time`, `temperature`, `pressure`, `light`. Others will simply be ignored as they are not implemented. THis may change in the future, so that all are sent in the metadata.
+        `image`, `time`, `temperature`, `pressure`, `light`. Others will simply be ignored as they are not implemented. This may change in the future, so that all are sent in the metadata.
         """
         image = kwargs.get('image', None)
         time = kwargs.get('time', None)

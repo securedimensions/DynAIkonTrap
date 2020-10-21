@@ -3,13 +3,14 @@ An interface to the sensor board. The logs from sensor readings are taken by the
 """
 from typing import Union
 from typing import OrderedDict as OrderedDictType
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Semaphore
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from time import time, sleep
 from serial import Serial, SerialException
 from collections import OrderedDict
 from bisect import bisect_left
+from signal import signal, setitimer, ITIMER_REAL, SIGALRM
 
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import SensorSettings
@@ -110,11 +111,16 @@ class SensorLogs:
         self._read_interval = settings.interval_s
         self._last_logged = 0
 
+        # Set up periodic temperature logging
+        signal(SIGALRM, self._log_now)
+        setitimer(ITIMER_REAL, 0.1, self._read_interval)
+
+        self._query_queue_semaphore = Semaphore(0)
         self._logger = Process(target=self._log, daemon=True)
         self._logger.start()
         logger.debug('SensorLogs started')
 
-    def _log_now(self):
+    def _log_now(self, delay=None, interval=None):
         if self._sensor is None:
             return
         sensor_log = self._sensor.read()
@@ -151,13 +157,10 @@ class SensorLogs:
 
     def _log(self):
         while True:
-            if not self._query_queue.empty():
-                query = self._query_queue.get_nowait()
-                self._results_queue.put_nowait(self._lookup(query))
+            self._query_queue_semaphore.acquire()
+            query = self._query_queue.get_nowait()
+            self._results_queue.put_nowait(self._lookup(query))
 
-            if time() - self._last_logged >= self._read_interval:
-                self._log_now()
-                self._last_logged = time()
 
     def get(self, timestamp: float) -> Union[SensorLog, type(None)]:
         """Get the log closest to the given timestamp and return it.
@@ -172,4 +175,5 @@ class SensorLogs:
         """
 
         self._query_queue.put(timestamp)
+        self._query_queue_semaphore.release()
         return self._results_queue.get()
