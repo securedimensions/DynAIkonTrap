@@ -114,39 +114,3 @@ class Camera:
     def close(self):
         self._camera.stop_recording()
 
-
-class MockCamera(Camera):
-    """A mock camera to be used only for testing. This is expected to be removed in the future."""
-
-    def __init__(self, **kwargs):
-        self.resolution = (640, 480)
-        self.framerate = 20
-        self._output: QueueType[Frame] = Queue()
-        from DynAIkonTrap.tester import Tester, load_pickle
-        from multiprocessing import Process
-        from queue import Full
-
-        data = load_pickle('DynAIkonTrap/dog2.pk')
-        truth = load_pickle('DynAIkonTrap/dog2.pk.truth')
-
-        # tester = Tester(data, truth)
-
-        def runner(frame):
-            if frame is None:
-                return False
-            self._output.put(Frame(frame['image'], frame['motion'], time()))
-            return False
-
-        def proc():
-            # sleep(30)
-            # while True:
-            # print('{} frames on queue'.format(self._output.qsize()))
-            tester = Tester(data, truth)
-            try:
-                tester.test(runner)
-            except Full:
-                print('Queue full: {} frames on queue'.format(self._output.qsize()))
-                quit(-1)
-
-        process = Process(target=proc, daemon=True)
-        process.start()

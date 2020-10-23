@@ -3,7 +3,7 @@ An interface to the sensor board. The logs from sensor readings are taken by the
 """
 from typing import Union
 from typing import OrderedDict as OrderedDictType
-from multiprocessing import Process, Queue, Semaphore
+from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from time import time, sleep
@@ -115,7 +115,6 @@ class SensorLogs:
         signal(SIGALRM, self._log_now)
         setitimer(ITIMER_REAL, 0.1, self._read_interval)
 
-        self._query_queue_semaphore = Semaphore(0)
         self._logger = Process(target=self._log, daemon=True)
         self._logger.start()
         logger.debug('SensorLogs started')
@@ -157,8 +156,7 @@ class SensorLogs:
 
     def _log(self):
         while True:
-            self._query_queue_semaphore.acquire()
-            query = self._query_queue.get_nowait()
+            query = self._query_queue.get()
             self._results_queue.put_nowait(self._lookup(query))
 
 
@@ -175,5 +173,4 @@ class SensorLogs:
         """
 
         self._query_queue.put(timestamp)
-        self._query_queue_semaphore.release()
         return self._results_queue.get()
