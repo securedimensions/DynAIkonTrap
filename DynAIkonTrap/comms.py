@@ -19,9 +19,7 @@ meta = {
 """
 from requests import post
 from requests.exceptions import HTTPError, ConnectionError
-import threading
-from multiprocessing import Process, Queue
-from queue import Empty
+from multiprocessing import Process
 from typing import Tuple
 
 from DynAIkonTrap.filtering import Filter
@@ -90,6 +88,7 @@ class Sender:
         logger.debug('Sending capture, meta = {}'.format(meta))
         try:
             r = post(self._server + self._path_POST, data=meta, files=files_dict)
+            r.raise_for_status()
         except HTTPError as e:
             logger.error(e)
         except ConnectionError as e:

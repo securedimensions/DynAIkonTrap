@@ -11,6 +11,9 @@ from scipy import signal
 
 from DynAIkonTrap.filtering.iir import IIRFilter
 from DynAIkonTrap.settings import MotionFilterSettings
+from DynAIkonTrap.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class MotionFilter:
@@ -35,10 +38,19 @@ class MotionFilter:
             fnq = framerate / 2
             return fc / fnq
 
+        wn = wn(settings.iir_cutoff_hz)
+        # Ensure wn is capped to the necessary bounds
+        if wn <= 0:
+            logger.error('IIR cutoff frequency too low (wn = {:.2f})'.format(wn))
+            wn = 1e-10
+        elif wn >= 1:
+            logger.error('IIR cutoff frequency too high (wn = {:.2f})'.format(wn))
+            wn = 1 - 1e-10
+
         sos = signal.cheby2(
             settings.iir_order,
             settings.iir_attenuation,
-            wn(settings.iir_cutoff_hz),
+            wn,
             output='sos',
             btype='lowpass',
         )

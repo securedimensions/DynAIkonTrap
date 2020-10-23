@@ -197,9 +197,9 @@ class MotionQueue:
             frame (Frame): A frame of motion and image data to be analysed
             motion_score (float): Output value for this frame from the motion filtering stage
         """
+        self._current_sequence.put(frame, motion_score)
         if len(self._current_sequence) >= self._sequence_len:
             self.end_motion_sequence()
-        self._current_sequence.put(frame, motion_score)
 
     def end_motion_sequence(self):
         """End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter."""
