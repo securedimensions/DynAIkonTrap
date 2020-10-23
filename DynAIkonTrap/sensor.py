@@ -131,12 +131,12 @@ class SensorLogs:
             return None
 
         keys = list(self._storage.keys())
+        if len(keys) == 0:
+            return None
+
         i = bisect_left(keys, timestamp) - 1
 
-        try:
-            key = keys[i]
-        except KeyError:
-            logger.error('Sensor log lookup failed with KeyError')
+        key = keys[i]
 
         # Delete all except current log as subsequent frames may still need this
         self._remove_logs(keys[:i])
