@@ -41,10 +41,6 @@
 <dd>
 <div class="desc"><p>Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system.</p>
 <p>Takes a <code>CameraSettings</code> object to initialise and start the camera hardware.</p></div>
-<h3>Subclasses</h3>
-<ul class="hlist">
-<li><a title="DynAIkonTrap.camera.MockCamera" href="#DynAIkonTrap.camera.MockCamera">MockCamera</a></li>
-</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.camera.Camera.close"><code class="name flex">
@@ -114,27 +110,6 @@
 <div class="desc"></div>
 </dd>
 </dl>
-</dd>
-<dt id="DynAIkonTrap.camera.MockCamera"><code class="flex name class">
-<span>class <span class="ident">MockCamera</span></span>
-<span>(</span><span>**kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>A mock camera to be used only for testing. This is expected to be removed in the future.</p>
-<p>Takes a <code>CameraSettings</code> object to initialise and start the camera hardware.</p></div>
-<h3>Ancestors</h3>
-<ul class="hlist">
-<li><a title="DynAIkonTrap.camera.Camera" href="#DynAIkonTrap.camera.Camera">Camera</a></li>
-</ul>
-<h3>Inherited members</h3>
-<ul class="hlist">
-<li><code><b><a title="DynAIkonTrap.camera.Camera" href="#DynAIkonTrap.camera.Camera">Camera</a></b></code>:
-<ul class="hlist">
-<li><code><a title="DynAIkonTrap.camera.Camera.empty" href="#DynAIkonTrap.camera.Camera.empty">empty</a></code></li>
-<li><code><a title="DynAIkonTrap.camera.Camera.get" href="#DynAIkonTrap.camera.Camera.get">get</a></code></li>
-</ul>
-</li>
-</ul>
 </dd>
 <dt id="DynAIkonTrap.camera.MovementAnalyser"><code class="flex name class">
 <span>class <span class="ident">MovementAnalyser</span></span>
@@ -225,9 +200,6 @@
 <ul class="">
 <li><code><a title="DynAIkonTrap.camera.ImageReader.write" href="#DynAIkonTrap.camera.ImageReader.write">write</a></code></li>
 </ul>
-</li>
-<li>
-<h4><code><a title="DynAIkonTrap.camera.MockCamera" href="#DynAIkonTrap.camera.MockCamera">MockCamera</a></code></h4>
 </li>
 <li>
 <h4><code><a title="DynAIkonTrap.camera.MovementAnalyser" href="#DynAIkonTrap.camera.MovementAnalyser">MovementAnalyser</a></code></h4>

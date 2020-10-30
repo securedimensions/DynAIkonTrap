@@ -1,6 +1,6 @@
 from json import dump
 
-from DynAIkonTrap.settings import Settings, FilterSettings
+from DynAIkonTrap.settings import Settings, FilterSettings, OutputMode
 
 
 def setter(name, setting):
@@ -104,7 +104,14 @@ settings.sensor.interval_s = setter(
 print('\nSender settings')
 print('---------------')
 settings.sender.server = setter('Server address', settings.sender.server)
-settings.sender.POST = setter('POST path (ADVNACED)', settings.sender.POST)
+mode = input('Output mode video? (y/n) [y]> ')
+if mode == 'y':
+    settings.sender.POST = 'capture_video/'
+    settings.sender.output_mode = OutputMode.VIDEO.value
+else:
+    settings.sender.POST = 'capture/'
+    settings.sender.output_mode = OutputMode.STILL.value
+    
 settings.sender.device_id = setter('Device ID', settings.sender.device_id)
 
 

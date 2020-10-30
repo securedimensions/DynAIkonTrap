@@ -15,7 +15,7 @@
             "iir_attenuation": 20
         },
         "animal": {
-            "threshold": 0.1
+            "threshold": 0.2
         },
         "motion_queue": {
             "smoothing_factor": 1.008,
@@ -29,7 +29,8 @@
     },
     "sender": {
         "server": "http://10.42.0.1:8080/trap/",
-        "POST": "capture/",
-        "device_id": 0
+        "POST": "capture_video/",
+        "device_id": 0,
+        "output_mode": 0
     }
 }

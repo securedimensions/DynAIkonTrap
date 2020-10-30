@@ -28,13 +28,13 @@ class Filter:
             read_from (Camera): Read frames from this camera
             settings (FilterSettings): Settings for the filter pipeline
         """
-        framerate = read_from.framerate
+        self.framerate = read_from.framerate
 
         self._input_queue = read_from
         self._output_queue: QueueType[Frame] = Queue()
 
         self._motion_filter = MotionFilter(
-            settings=settings.motion, framerate=framerate
+            settings=settings.motion, framerate=self.framerate
         )
         self._motion_threshold = settings.motion.sotv_threshold
 
@@ -43,7 +43,7 @@ class Filter:
             animal_detector=self._animal_filter,
             output_callback=lambda frames: [self._output_queue.put(f) for f in frames],
             settings=settings.motion_queue,
-            framerate=framerate,
+            framerate=self.framerate,
         )
 
         self._usher = Process(target=self._handle_input, daemon=True)
