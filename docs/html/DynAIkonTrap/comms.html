@@ -78,6 +78,45 @@
 <div class="desc"><p>Queue the specified data for sending. Available keyword arguments:
 <code>image</code>, <code>time</code>, <code>temperature</code>, <code>pressure</code>, <code>light</code>. Others will simply be ignored as they are not implemented. This may change in the future, so that all are sent in the metadata.</p></div>
 </dd>
+<dt id="DynAIkonTrap.comms.Sender.send_video"><code class="name flex">
+<span>def <span class="ident">send_video</span></span>(<span>self, video, caption, time)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>NOTE: temporary addition</p></div>
+</dd>
+</dl>
+</dd>
+<dt id="DynAIkonTrap.comms.VideoCaption"><code class="flex name class">
+<span>class <span class="ident">VideoCaption</span></span>
+<span>(</span><span>sensor_logs: <a title="DynAIkonTrap.sensor.SensorLogs" href="sensor.html#DynAIkonTrap.sensor.SensorLogs">SensorLogs</a>, framerate: float)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Class to aid in generating captions for video output. The captions are based on the logged sensor readings.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>sensor_logs</code></strong> :&ensp;<code>SensorLogs</code></dt>
+<dd>The object containing the log of sensor readings</dd>
+<dt><strong><code>framerate</code></strong> :&ensp;<code>float</code></dt>
+<dd>Camera framerate</dd>
+</dl></div>
+<h3>Methods</h3>
+<dl>
+<dt id="DynAIkonTrap.comms.VideoCaption.generate_vtt_for"><code class="name flex">
+<span>def <span class="ident">generate_vtt_for</span></span>(<span>self, timestamps: List[float]) ‑> _io.StringIO</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Generate WebVTT captions containing the sensor readings at given moments in time.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>timestamps</code></strong> :&ensp;<code>List[float]</code></dt>
+<dd>Timestamps for every frame in the motion/animal sequence</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>StringIO</code></dt>
+<dd>The WebVTT captions ready to be sent to a server</dd>
+</dl></div>
+</dd>
 </dl>
 </dd>
 </dl>
@@ -101,6 +140,13 @@
 <ul class="">
 <li><code><a title="DynAIkonTrap.comms.Sender.close" href="#DynAIkonTrap.comms.Sender.close">close</a></code></li>
 <li><code><a title="DynAIkonTrap.comms.Sender.send" href="#DynAIkonTrap.comms.Sender.send">send</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Sender.send_video" href="#DynAIkonTrap.comms.Sender.send_video">send_video</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="DynAIkonTrap.comms.VideoCaption" href="#DynAIkonTrap.comms.VideoCaption">VideoCaption</a></code></h4>
+<ul class="">
+<li><code><a title="DynAIkonTrap.comms.VideoCaption.generate_vtt_for" href="#DynAIkonTrap.comms.VideoCaption.generate_vtt_for">generate_vtt_for</a></code></li>
 </ul>
 </li>
 </ul>

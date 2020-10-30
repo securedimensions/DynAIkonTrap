@@ -1,15 +1,14 @@
 """
 An interface to the sensor board. The logs from sensor readings are taken by the `SensorLogs` and can be accessed via the `SensorLogger.get()` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
 """
-from typing import Union
+from typing import List, Tuple, Union
 from typing import OrderedDict as OrderedDictType
 from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
-from time import time, sleep
+from time import time
 from serial import Serial, SerialException
 from collections import OrderedDict
-from bisect import bisect_left
 from signal import signal, setitimer, ITIMER_REAL, SIGALRM
 
 from DynAIkonTrap.logging import get_logger
@@ -34,6 +33,7 @@ class SensorLog:
     brightness: 'Union[Reading, type(None)]'
     humidity: 'Union[Reading, type(None)]'
     pressure: 'Union[Reading, type(None)]'
+    temperature: 'type(None)' = None  # Not yet supported by the sensor
 
 
 class Sensor:
@@ -111,13 +111,13 @@ class SensorLogs:
         self._read_interval = settings.interval_s
         self._last_logged = 0
 
-        # Set up periodic temperature logging
-        signal(SIGALRM, self._log_now)
-        setitimer(ITIMER_REAL, 0.1, self._read_interval)
-
         self._logger = Process(target=self._log, daemon=True)
         self._logger.start()
         logger.debug('SensorLogs started')
+
+    @property
+    def read_interval(self):
+        return self._read_interval
 
     def _log_now(self, delay=None, interval=None):
         if self._sensor is None:
@@ -125,6 +125,32 @@ class SensorLogs:
         sensor_log = self._sensor.read()
         logger.debug(sensor_log)
         self._storage[sensor_log.timestamp] = sensor_log
+
+    def _find_closest_key(
+        self, sorted_keys: List[float], ts: float, index: int = 0
+    ) -> Tuple[float, int]:
+
+        if len(sorted_keys) == 1:
+            return (sorted_keys[0], index)
+
+        # Find numerically closest key of two
+        if len(sorted_keys) == 2:
+            mean_ts = sum(sorted_keys) / 2
+            if ts >= mean_ts:
+                return (sorted_keys[1], index + 1)
+            else:
+                return (sorted_keys[0], index)
+
+        halfway = int(len(sorted_keys) // 2)
+        halfway_ts = sorted_keys[halfway]
+
+        # Normal bisecting
+        if ts == halfway_ts:
+            return (ts, halfway)
+        elif ts > halfway_ts:
+            return self._find_closest_key(sorted_keys[halfway:], ts, halfway)
+        else:
+            return self._find_closest_key(sorted_keys[: halfway + 1], ts, 0)
 
     def _lookup(self, timestamp: float) -> SensorLog:
         if self._sensor is None:
@@ -134,15 +160,16 @@ class SensorLogs:
         if len(keys) == 0:
             return None
 
-        i = bisect_left(keys, timestamp) - 1
-
-        key = keys[i]
+        key, index = self._find_closest_key(keys, timestamp)
 
         # Delete all except current log as subsequent frames may still need this
-        self._remove_logs(keys[:i])
+        try:
+            self._remove_logs(keys[:index])
+        except KeyError as e:
+            logger.error('Attempted to delete nonexistent log(s): {}'.format(e))
         return self._storage.get(key, None)
 
-    def _remove_logs(self, timestamps: float):
+    def _remove_logs(self, timestamps: List[float]):
         """Removes all logs with the given `timestamp` keys."""
         for t in timestamps:
             del self._storage[t]
@@ -155,10 +182,13 @@ class SensorLogs:
             )
 
     def _log(self):
+        # Set up periodic temperature logging
+        signal(SIGALRM, self._log_now)
+        setitimer(ITIMER_REAL, 0.1, self._read_interval)
+
         while True:
             query = self._query_queue.get()
             self._results_queue.put_nowait(self._lookup(query))
-
 
     def get(self, timestamp: float) -> Union[SensorLog, type(None)]:
         """Get the log closest to the given timestamp and return it.

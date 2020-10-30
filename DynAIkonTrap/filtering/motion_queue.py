@@ -241,10 +241,9 @@ class MotionQueue:
                     len(sequence) / t,
                 )
             )
-
-            self._output_callback(
-                list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
-            )
+            output = list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
+            output += [None] if len(output) > 0 else []
+            self._output_callback(output)
 
     def is_idle(self) -> bool:
         """Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future."""

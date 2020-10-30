@@ -12,6 +12,7 @@ from DynAIkonTrap.settings import (
     MotionQueueSettings,
     SensorSettings,
     SenderSettings,
+    OutputMode
 )
 
 
@@ -90,6 +91,7 @@ class SettingsDoesExistTestCase(TestCase):
                 "server": -15,
                 "POST": -16,
                 "device_id": -17,
+                "output_mode": 0
             },
         }
         self._settings = Settings(
@@ -100,7 +102,7 @@ class SettingsDoesExistTestCase(TestCase):
                 MotionQueueSettings(-10, -11),
             ),
             SensorSettings(-12, -13, -14),
-            SenderSettings(-15, -16, -17),
+            SenderSettings(-15, -16, -17, OutputMode(0)),
         )
 
         with open('DynAIkonTrap/settings.json', 'w') as f:

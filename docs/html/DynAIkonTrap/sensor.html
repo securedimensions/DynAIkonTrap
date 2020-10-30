@@ -86,7 +86,7 @@
 </dd>
 <dt id="DynAIkonTrap.sensor.SensorLog"><code class="flex name class">
 <span>class <span class="ident">SensorLog</span></span>
-<span>(</span><span>timestamp: float, brightness: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)], humidity: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)], pressure: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)])</span>
+<span>(</span><span>timestamp: float, brightness: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)], humidity: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)], pressure: Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, type(None)], temperature: type(None) = None)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A log of sensor readings taken at a given moment in time. Time is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by <code>None</code> in the log.</p></div>
@@ -101,6 +101,10 @@
 <div class="desc"></div>
 </dd>
 <dt id="DynAIkonTrap.sensor.SensorLog.pressure"><code class="name">var <span class="ident">pressure</span> : Union[<a title="DynAIkonTrap.sensor.Reading" href="#DynAIkonTrap.sensor.Reading">Reading</a>, NoneType]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="DynAIkonTrap.sensor.SensorLog.temperature"><code class="name">var <span class="ident">temperature</span> : NoneType</code></dt>
 <dd>
 <div class="desc"></div>
 </dd>
@@ -126,6 +130,13 @@
 <dt><code>SerialException</code></dt>
 <dd>If the sensor board could not be found</dd>
 </dl></div>
+<h3>Instance variables</h3>
+<dl>
+<dt id="DynAIkonTrap.sensor.SensorLogs.read_interval"><code class="name">var <span class="ident">read_interval</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.sensor.SensorLogs.get"><code class="name flex">
@@ -182,6 +193,7 @@
 <li><code><a title="DynAIkonTrap.sensor.SensorLog.brightness" href="#DynAIkonTrap.sensor.SensorLog.brightness">brightness</a></code></li>
 <li><code><a title="DynAIkonTrap.sensor.SensorLog.humidity" href="#DynAIkonTrap.sensor.SensorLog.humidity">humidity</a></code></li>
 <li><code><a title="DynAIkonTrap.sensor.SensorLog.pressure" href="#DynAIkonTrap.sensor.SensorLog.pressure">pressure</a></code></li>
+<li><code><a title="DynAIkonTrap.sensor.SensorLog.temperature" href="#DynAIkonTrap.sensor.SensorLog.temperature">temperature</a></code></li>
 <li><code><a title="DynAIkonTrap.sensor.SensorLog.timestamp" href="#DynAIkonTrap.sensor.SensorLog.timestamp">timestamp</a></code></li>
 </ul>
 </li>
@@ -189,6 +201,7 @@
 <h4><code><a title="DynAIkonTrap.sensor.SensorLogs" href="#DynAIkonTrap.sensor.SensorLogs">SensorLogs</a></code></h4>
 <ul class="">
 <li><code><a title="DynAIkonTrap.sensor.SensorLogs.get" href="#DynAIkonTrap.sensor.SensorLogs.get">get</a></code></li>
+<li><code><a title="DynAIkonTrap.sensor.SensorLogs.read_interval" href="#DynAIkonTrap.sensor.SensorLogs.read_interval">read_interval</a></code></li>
 </ul>
 </li>
 </ul>
