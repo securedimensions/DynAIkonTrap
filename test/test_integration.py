@@ -9,7 +9,7 @@ from DynAIkonTrap.camera import Frame, Camera
 from DynAIkonTrap.filtering import Filter
 from DynAIkonTrap.comms import Sender
 from DynAIkonTrap.sensor import SensorLogs
-from DynAIkonTrap.settings import load_settings, OutputMode
+from DynAIkonTrap.settings import OutputMode, SenderSettings, load_settings, OutputFormat
 
 
 class Tester:
@@ -162,20 +162,20 @@ class SenderMock(Sender):
         self.call_count = Value('i', 0)
         super().__init__(settings, read_from)
 
-    def send(self, **kwargs):
+    def output_still(self, **kwargs):
         with self.call_count.get_lock():
             self.call_count.value += 1
 
 
-class IntegrationStillsOutTestCase(TestCase):
+class IntegrationSendStillsOutTestCase(TestCase):
     def test_integration_at_least_one_animal_frame(self):
         settings = load_settings()
-        settings.sender.output_mode = OutputMode.STILL
+        settings.output = SenderSettings(0, OutputFormat.STILL, OutputMode.SEND, '', '')
         camera = MockCamera()
         filters = Filter(read_from=camera, settings=settings.filter)
         sensor_logs = SensorLogs(settings=settings.sensor)
         self.sender = SenderMock(
-            settings=settings.sender, read_from=(filters, sensor_logs)
+            settings=settings.output, read_from=(filters, sensor_logs)
         )
 
         t_start = time()
@@ -183,9 +183,8 @@ class IntegrationStillsOutTestCase(TestCase):
         while True:
 
             if self.sender.call_count.value >= 1:
-                self.assertTrue(True)
                 break
 
             if time() - t_start >= 50:
-                self.assertTrue(False, 'Timed out')
+                self.fail('Timed out')
                 break

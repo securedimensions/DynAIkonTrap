@@ -41,7 +41,8 @@ The JSON file should be structured as follows (of course the values can be chang
     "sender": {
         "server": "http://10.42.0.1:8080/trap/",
         "POST": "capture/",
-        "device_id": 0
+        "device_id": 0,
+        "output_format": 0
     }
 }
 ```
@@ -100,21 +101,40 @@ class SensorSettings:
     interval_s: float = 30.0
 
 
-class OutputMode(Enum):
-    """System output mode"""
+class OutputFormat(Enum):
+    """System output format"""
 
     VIDEO = 0
     STILL = 1
 
 
+class OutputMode(Enum):
+    """System output mode"""
+
+    DISK = 0
+    SEND = 1
+
+
 @dataclass
-class SenderSettings:
+class OutputSettings:
+    device_id: Any = 0
+    output_format: OutputFormat = OutputFormat.STILL
+    output_mode: OutputMode = OutputMode.DISK
+
+
+@dataclass
+class SenderSettings(OutputSettings):
     """Settings for a `DynAIkonTrap.comms.Sender`"""
 
     server: str = 'http://10.42.0.1:8080/trap/'
     POST: str = 'capture/'
-    device_id: Any = 0
-    output_mode: OutputMode = OutputMode.STILL
+
+
+@dataclass
+class WriterSettings(OutputSettings):
+    """Settings for a `DynAIkonTrap.comms.Writer`"""
+
+    path: str = ''
 
 
 @dataclass
@@ -133,7 +153,7 @@ class Settings:
     camera: CameraSettings = CameraSettings()
     filter: FilterSettings = FilterSettings()
     sensor: SensorSettings = SensorSettings()
-    sender: SenderSettings = SenderSettings()
+    output: Union[SenderSettings, WriterSettings] = WriterSettings()
 
 
 def load_settings() -> Settings:
@@ -155,6 +175,27 @@ def load_settings() -> Settings:
                 return Settings()
 
             try:
+                output_mode = OutputMode(settings_json['output']['output_mode'])
+                if output_mode == OutputMode.SEND:
+                    output = SenderSettings(
+                        server=settings_json['output']['server'],
+                        POST=settings_json['output']['POST'],
+                        device_id=settings_json['output']['device_id'],
+                        output_format=OutputFormat(
+                            settings_json['output']['output_format']
+                        ),
+                        output_mode=output_mode,
+                    )
+                else:  # Default to writing to disk
+                    output = WriterSettings(
+                        device_id=settings_json['output']['device_id'],
+                        output_format=OutputFormat(
+                            settings_json['output']['output_format']
+                        ),
+                        output_mode=output_mode,
+                        path=settings_json['output']['path'],
+                    )
+
                 return Settings(
                     CameraSettings(**settings_json['camera']),
                     FilterSettings(
@@ -163,13 +204,9 @@ def load_settings() -> Settings:
                         MotionQueueSettings(**settings_json['filter']['motion_queue']),
                     ),
                     SensorSettings(**settings_json['sensor']),
-                    SenderSettings(
-                        server=settings_json['sender']['server'],
-                        POST=settings_json['sender']['POST'],
-                        device_id=settings_json['sender']['device_id'],
-                        output_mode=OutputMode(settings_json['sender']['output_mode']),
-                    ),
+                    output,
                 )
+
             except KeyError as e:
                 logger.warning(
                     'Badly formatted settings.json, using defaults (KeyError `{}`)'.format(

@@ -1,6 +1,14 @@
 from json import dump
+from types import MappingProxyType
 
-from DynAIkonTrap.settings import Settings, FilterSettings, OutputMode
+from DynAIkonTrap.settings import (
+    OutputMode,
+    SenderSettings,
+    Settings,
+    FilterSettings,
+    OutputFormat,
+    WriterSettings,
+)
 
 
 def setter(name, setting):
@@ -101,26 +109,41 @@ settings.sensor.interval_s = setter(
     'Sensor reading interval/s', settings.sensor.interval_s
 )
 
-print('\nSender settings')
+print('\nOutput settings')
 print('---------------')
-settings.sender.server = setter('Server address', settings.sender.server)
-mode = input('Output mode video? (y/n) [y]> ')
-if mode == 'y':
-    settings.sender.POST = 'capture_video/'
-    settings.sender.output_mode = OutputMode.VIDEO.value
+mode = input('Output mode: save to disk, or server? (d/s) [d]> ')
+if mode == 's':
+    settings.output = SenderSettings
+    settings.output.output_mode = OutputMode.SEND.value
+    settings.output.server = setter('Server address', settings.output.server)
 else:
-    settings.sender.POST = 'capture/'
-    settings.sender.output_mode = OutputMode.STILL.value
-    
-settings.sender.device_id = setter('Device ID', settings.sender.device_id)
+    settings.output = WriterSettings
+    settings.output.output_mode = OutputMode.DISK.value
+    settings.output.path = setter('Output path', settings.output.path)
+
+
+format = input('Output format video? (y/n) [y]> ')
+if format == 'n':
+    if mode == 's':
+        settings.output.POST = 'capture/'
+    settings.output.output_format = OutputFormat.STILL.value
+else:
+    if mode == 's':
+        settings.output.POST = 'capture_video/'
+    settings.output.output_format = OutputFormat.VIDEO.value
+
+settings.output.device_id = setter('Device ID', settings.output.device_id)
 
 
 def serialise(obj):
     if isinstance(obj, Settings):
         return {k: serialise(v) for k, v in obj.__dict__.items()}
 
-    if isinstance(obj, FilterSettings):
+    elif isinstance(obj, FilterSettings):
         return {k: serialise(v) for k, v in obj.__dict__.items()}
+
+    elif isinstance(obj, MappingProxyType):
+        return {k: v for k, v in obj.items() if not k.startswith('__')}
 
     return obj.__dict__
 

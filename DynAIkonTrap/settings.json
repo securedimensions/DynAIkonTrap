@@ -27,10 +27,10 @@
         "baud": 57600,
         "interval_s": 30.0
     },
-    "sender": {
-        "server": "http://10.42.0.1:8080/trap/",
-        "POST": "capture_video/",
-        "device_id": 0,
-        "output_mode": 0
+    "output": {
+        "path": "",
+        "output_mode": 0,
+        "output_format": 0,
+        "device_id": 0
     }
 }
