@@ -3,7 +3,7 @@ from os import listdir, replace, remove
 from json import dump
 
 from DynAIkonTrap.settings import (
-    load_settings,
+    OutputMode, load_settings,
     Settings,
     CameraSettings,
     FilterSettings,
@@ -12,7 +12,7 @@ from DynAIkonTrap.settings import (
     MotionQueueSettings,
     SensorSettings,
     SenderSettings,
-    OutputMode
+    OutputFormat,
 )
 
 
@@ -87,11 +87,12 @@ class SettingsDoesExistTestCase(TestCase):
                 },
             },
             "sensor": {"port": -12, "baud": -13, "interval_s": -14},
-            "sender": {
+            "output": {
+                "output_mode": 1,
                 "server": -15,
                 "POST": -16,
                 "device_id": -17,
-                "output_mode": 0
+                "output_format": 0,
             },
         }
         self._settings = Settings(
@@ -102,7 +103,7 @@ class SettingsDoesExistTestCase(TestCase):
                 MotionQueueSettings(-10, -11),
             ),
             SensorSettings(-12, -13, -14),
-            SenderSettings(-15, -16, -17, OutputMode(0)),
+            SenderSettings(-17, OutputFormat(0), OutputMode(1), -15, -16)
         )
 
         with open('DynAIkonTrap/settings.json', 'w') as f:
@@ -110,6 +111,7 @@ class SettingsDoesExistTestCase(TestCase):
 
     def test_returns_loaded_settings(self):
         loaded_settings = load_settings()
+        print(loaded_settings)
         self.assertEqual(loaded_settings, self._settings)
 
     def tearDown(self) -> None:

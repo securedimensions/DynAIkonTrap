@@ -57,34 +57,94 @@
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
+<dt id="DynAIkonTrap.comms.Output"><code class="flex name class">
+<span>class <span class="ident">Output</span></span>
+<span>(</span><span>settings: <a title="DynAIkonTrap.settings.OutputSettings" href="settings.html#DynAIkonTrap.settings.OutputSettings">OutputSettings</a>, read_from: Tuple[<a title="DynAIkonTrap.filtering.filtering.Filter" href="filtering/filtering.html#DynAIkonTrap.filtering.filtering.Filter">Filter</a>, <a title="DynAIkonTrap.sensor.SensorLogs" href="sensor.html#DynAIkonTrap.sensor.SensorLogs">SensorLogs</a>])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A base class to use for outputting captured images or videos. The <code>output_still()</code> and <code>output_video()</code> functions should be overridden with output method-specific implementations.</p></div>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="DynAIkonTrap.comms.Sender" href="#DynAIkonTrap.comms.Sender">Sender</a></li>
+<li><a title="DynAIkonTrap.comms.Writer" href="#DynAIkonTrap.comms.Writer">Writer</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="DynAIkonTrap.comms.Output.close"><code class="name flex">
+<span>def <span class="ident">close</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="DynAIkonTrap.comms.Output.output_still"><code class="name flex">
+<span>def <span class="ident">output_still</span></span>(<span>self, image: bytes, time: float, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Output a still image with its sensor data. The sensor data can be provided via the keyword arguments.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>image</code></strong> :&ensp;<code>bytes</code></dt>
+<dd>The JPEG image frame</dd>
+<dt><strong><code>time</code></strong> :&ensp;<code>float</code></dt>
+<dd>UNIX timestamp when the image was captured</dd>
+<dt><strong><code>**humidity</code></strong> :&ensp;<code>float</code></dt>
+<dd>Humidity at or close to capture time</dd>
+<dt><strong><code>**brightness</code></strong> :&ensp;<code>float</code></dt>
+<dd>Brightness at or close to capture time</dd>
+<dt><strong><code>**pressure</code></strong> :&ensp;<code>float</code></dt>
+<dd>Pressure at or close to capture time</dd>
+<dt><strong><code>**temperature</code></strong> :&ensp;<code>float</code></dt>
+<dd>Temperature at or close to capture time</dd>
+<dt><strong><code>**trap_id</code></strong></dt>
+<dd>ID of the camera trap</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>NotImplementedError</code></dt>
+<dd>A subclass should implement this function for the specific use-case e.g. writing to disk.</dd>
+</dl></div>
+</dd>
+<dt id="DynAIkonTrap.comms.Output.output_video"><code class="name flex">
+<span>def <span class="ident">output_video</span></span>(<span>self, video: IO[bytes], caption: _io.StringIO, time: float, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Output a video with its meta-data. The sensor data is provided via the video captions (<code>caption</code>).</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>video</code></strong> :&ensp;<code>IO[bytes]</code></dt>
+<dd>MP4 video (codec: H264 - MPEG-4 AVC (part 10))</dd>
+<dt><strong><code>caption</code></strong> :&ensp;<code>StringIO</code></dt>
+<dd>WebVTT caption of sensor readings</dd>
+<dt><strong><code>time</code></strong> :&ensp;<code>float</code></dt>
+<dd>UNIX timestamp when the image was captured</dd>
+</dl>
+<h2 id="raises">Raises</h2>
+<dl>
+<dt><code>NotImplementedError</code></dt>
+<dd>A subclass should implement this function for the specific use-case e.g. writing to disk.</dd>
+</dl></div>
+</dd>
+</dl>
+</dd>
 <dt id="DynAIkonTrap.comms.Sender"><code class="flex name class">
 <span>class <span class="ident">Sender</span></span>
 <span>(</span><span>settings: <a title="DynAIkonTrap.settings.SenderSettings" href="settings.html#DynAIkonTrap.settings.SenderSettings">SenderSettings</a>, read_from: Tuple[<a title="DynAIkonTrap.filtering.filtering.Filter" href="filtering/filtering.html#DynAIkonTrap.filtering.filtering.Filter">Filter</a>, <a title="DynAIkonTrap.sensor.SensorLogs" href="sensor.html#DynAIkonTrap.sensor.SensorLogs">SensorLogs</a>])</span>
 </code></dt>
 <dd>
 <div class="desc"><p>The Sender is a simple interface for sending the desired data to a server</p></div>
-<h3>Methods</h3>
-<dl>
-<dt id="DynAIkonTrap.comms.Sender.close"><code class="name flex">
-<span>def <span class="ident">close</span></span>(<span>self)</span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-</dd>
-<dt id="DynAIkonTrap.comms.Sender.send"><code class="name flex">
-<span>def <span class="ident">send</span></span>(<span>self, **kwargs)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Queue the specified data for sending. Available keyword arguments:
-<code>image</code>, <code>time</code>, <code>temperature</code>, <code>pressure</code>, <code>light</code>. Others will simply be ignored as they are not implemented. This may change in the future, so that all are sent in the metadata.</p></div>
-</dd>
-<dt id="DynAIkonTrap.comms.Sender.send_video"><code class="name flex">
-<span>def <span class="ident">send_video</span></span>(<span>self, video, caption, time)</span>
-</code></dt>
-<dd>
-<div class="desc"><p>NOTE: temporary addition</p></div>
-</dd>
-</dl>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="DynAIkonTrap.comms.Output" href="#DynAIkonTrap.comms.Output">Output</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="DynAIkonTrap.comms.Output" href="#DynAIkonTrap.comms.Output">Output</a></b></code>:
+<ul class="hlist">
+<li><code><a title="DynAIkonTrap.comms.Output.output_still" href="#DynAIkonTrap.comms.Output.output_still">output_still</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Output.output_video" href="#DynAIkonTrap.comms.Output.output_video">output_video</a></code></li>
+</ul>
+</li>
+</ul>
 </dd>
 <dt id="DynAIkonTrap.comms.VideoCaption"><code class="flex name class">
 <span>class <span class="ident">VideoCaption</span></span>
@@ -119,6 +179,26 @@
 </dd>
 </dl>
 </dd>
+<dt id="DynAIkonTrap.comms.Writer"><code class="flex name class">
+<span>class <span class="ident">Writer</span></span>
+<span>(</span><span>settings: <a title="DynAIkonTrap.settings.WriterSettings" href="settings.html#DynAIkonTrap.settings.WriterSettings">WriterSettings</a>, read_from: Tuple[<a title="DynAIkonTrap.filtering.filtering.Filter" href="filtering/filtering.html#DynAIkonTrap.filtering.filtering.Filter">Filter</a>, <a title="DynAIkonTrap.sensor.SensorLogs" href="sensor.html#DynAIkonTrap.sensor.SensorLogs">SensorLogs</a>])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A base class to use for outputting captured images or videos. The <code>output_still()</code> and <code>output_video()</code> functions should be overridden with output method-specific implementations.</p></div>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="DynAIkonTrap.comms.Output" href="#DynAIkonTrap.comms.Output">Output</a></li>
+</ul>
+<h3>Inherited members</h3>
+<ul class="hlist">
+<li><code><b><a title="DynAIkonTrap.comms.Output" href="#DynAIkonTrap.comms.Output">Output</a></b></code>:
+<ul class="hlist">
+<li><code><a title="DynAIkonTrap.comms.Output.output_still" href="#DynAIkonTrap.comms.Output.output_still">output_still</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Output.output_video" href="#DynAIkonTrap.comms.Output.output_video">output_video</a></code></li>
+</ul>
+</li>
+</ul>
+</dd>
 </dl>
 </section>
 </article>
@@ -136,18 +216,24 @@
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="DynAIkonTrap.comms.Sender" href="#DynAIkonTrap.comms.Sender">Sender</a></code></h4>
+<h4><code><a title="DynAIkonTrap.comms.Output" href="#DynAIkonTrap.comms.Output">Output</a></code></h4>
 <ul class="">
-<li><code><a title="DynAIkonTrap.comms.Sender.close" href="#DynAIkonTrap.comms.Sender.close">close</a></code></li>
-<li><code><a title="DynAIkonTrap.comms.Sender.send" href="#DynAIkonTrap.comms.Sender.send">send</a></code></li>
-<li><code><a title="DynAIkonTrap.comms.Sender.send_video" href="#DynAIkonTrap.comms.Sender.send_video">send_video</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Output.close" href="#DynAIkonTrap.comms.Output.close">close</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Output.output_still" href="#DynAIkonTrap.comms.Output.output_still">output_still</a></code></li>
+<li><code><a title="DynAIkonTrap.comms.Output.output_video" href="#DynAIkonTrap.comms.Output.output_video">output_video</a></code></li>
 </ul>
+</li>
+<li>
+<h4><code><a title="DynAIkonTrap.comms.Sender" href="#DynAIkonTrap.comms.Sender">Sender</a></code></h4>
 </li>
 <li>
 <h4><code><a title="DynAIkonTrap.comms.VideoCaption" href="#DynAIkonTrap.comms.VideoCaption">VideoCaption</a></code></h4>
 <ul class="">
 <li><code><a title="DynAIkonTrap.comms.VideoCaption.generate_vtt_for" href="#DynAIkonTrap.comms.VideoCaption.generate_vtt_for">generate_vtt_for</a></code></li>
 </ul>
+</li>
+<li>
+<h4><code><a title="DynAIkonTrap.comms.Writer" href="#DynAIkonTrap.comms.Writer">Writer</a></code></h4>
 </li>
 </ul>
 </li>
