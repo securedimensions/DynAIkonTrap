@@ -73,8 +73,8 @@ class MotionFilterSettings:
     small_threshold: int = 10
     sotv_threshold: float = 300.0
     iir_cutoff_hz: float = 2.0
-    iir_order: int = 8
-    iir_attenuation: int = 20
+    iir_order: int = 3
+    iir_attenuation: int = 35
 
 
 @dataclass

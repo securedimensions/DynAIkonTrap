@@ -11,8 +11,8 @@
             "small_threshold": 10,
             "sotv_threshold": 319.9398513079542,
             "iir_cutoff_hz": 0.9920634920634921,
-            "iir_order": 8,
-            "iir_attenuation": 20
+            "iir_order": 3,
+            "iir_attenuation": 35
         },
         "animal": {
             "threshold": 0.2
