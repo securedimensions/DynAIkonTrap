@@ -180,7 +180,7 @@ class MotionQueue:
             output_callback (Callable[[List[Frame]], Any]): Function to call with filtered frames
             framerate (int): Framerate at which the frames were recorded
         """
-        self._smoothing_len = int((settings.max_sequence_period_s * framerate) / 2)
+        self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
         self._sequence_len = framerate * settings.max_sequence_period_s
         self._current_sequence = MotionSequence(self._smoothing_len)
         self._queue: QueueType[MotionSequence] = Queue()
