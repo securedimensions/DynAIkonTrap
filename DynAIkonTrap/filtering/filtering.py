@@ -41,7 +41,6 @@ class Filter:
         self._animal_filter = AnimalFilter(settings=settings.animal)
         self._motion_queue = MotionQueue(
             animal_detector=self._animal_filter,
-            output_callback=lambda frames: [self._output_queue.put(f) for f in frames],
             settings=settings.motion_queue,
             framerate=self.framerate,
         )
@@ -56,7 +55,7 @@ class Filter:
         Returns:
             Frame: An animal frame
         """
-        return self._output_queue.get()
+        return self._motion_queue.get()
 
     def close(self):
         self._usher.terminate()
@@ -65,17 +64,20 @@ class Filter:
     def _handle_input(self):
         while True:
 
-            if not self._input_queue.empty():
-                try:
-                    frame = self._input_queue.get()
-                except Empty:
-                    continue
+            try:
+                frame = self._input_queue.get()
+            except Empty:
+                # An unexpected event; finish processing motion so far
+                self._motion_queue.end_motion_sequence()
+                self._motion_filter.reset()
+                continue
 
-                motion_score = self._motion_filter.run_raw(frame.motion)
-                motion_detected = motion_score >= self._motion_threshold
 
-                if motion_detected:
-                    self._motion_queue.put(frame, motion_score)
+            motion_score = self._motion_filter.run_raw(frame.motion)
+            motion_detected = motion_score >= self._motion_threshold
 
-                else:
-                    self._motion_queue.end_motion_sequence()
+            if motion_detected:
+                self._motion_queue.put(frame, motion_score)
+
+            else:
+                self._motion_queue.end_motion_sequence()

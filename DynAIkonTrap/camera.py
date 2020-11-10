@@ -80,6 +80,7 @@ class Camera:
         self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
         sleep(2)  # Camera warmup
 
+        self._no_frames = False
         self._output: QueueType[Frame] = Queue()
         synchroniser = Synchroniser(self._output)
         self._camera.start_recording(
@@ -95,13 +96,23 @@ class Camera:
     def get(self) -> Frame:
         """Retrieve the next frame from the camera
 
+        Raises:
+            Empty: If the camera has not captured any frames since the last call
+
         Returns:
             Frame: A frame from the camera video stream
         """
         try:
             return self._output.get_nowait()
         except Empty:
-            logger.error('No frames available from Camera')
+            # Tell the user no frames were recorded
+            if not self._no_frames:
+                logger.error('No frames available from Camera')
+                self._no_frames = True
+                raise Empty
+            # Block until new frames arrive if get called again
+            else:
+                return self._output.get()
 
     def empty(self) -> bool:
         """Indicates if the queue of buffered frames is empty

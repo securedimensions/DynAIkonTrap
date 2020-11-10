@@ -266,9 +266,8 @@ class KeepPuttingMotionQueueTestCase(TestCase):
         self._output = Queue()
 
         self._mq = MotionQueue(
-            settings=MotionQueueSettings(max_sequence_period_s=5),
+            settings=MotionQueueSettings(max_sequence_period_s=5, smoothing_factor=5),
             animal_detector=self._animal_filter,
-            output_callback=lambda frames: [self._output.put(f) for f in frames],
             framerate=1,
         )
 
@@ -286,19 +285,19 @@ class KeepPuttingMotionQueueTestCase(TestCase):
     def test_frames_are_run_and_output(self):
         t_start = time()
         while True:
-            if self._output.qsize() == 10:
+            if self._mq._output_queue.qsize() == 10:
                 self.assertTrue(True)
                 break
 
             if time() - t_start > 10:
-                self.assertTrue(False, 'Timed out')
+                self.fail('Timed out')
 
     def test_animal_filter_called_for_only_some_frames(self):
         t_start = time()
         while True:
-            if self._output.qsize() == 10:
+            if self._mq._output_queue.qsize() == 10:
                 break
             if time() - t_start > 10:
-                self.assertTrue(False, 'Timed out')
+                self.fail('Timed out')
 
         self.assertEqual(self._animal_filter.num_calls.value, 4)

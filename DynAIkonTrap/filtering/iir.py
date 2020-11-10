@@ -39,6 +39,9 @@ class IIR2Filter:
         self.tap1 = x
         return output
 
+    def reset(self):
+        self.tap1, self.tap2 = 0, 0
+
 
 class IIRFilter(object):
     """IIR filter constructed from IIR2Filters"""
@@ -65,3 +68,6 @@ class IIRFilter(object):
         for filter in self.iir2filters:
             x = filter.filter(x)
         return x
+
+    def reset(self):
+        [f.reset() for f in self.iir2filters]
