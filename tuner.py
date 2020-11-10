@@ -45,8 +45,8 @@ settings.camera.resolution = (w, h)
 
 # Camera settings for later
 area_reality = setter('Visible animal area to trigger/m^2', 0.0064)
-subject_distance = setter('Expected distance of animal from sensor/m', 1)
-animal_speed = setter('Min. animal trigger speed/m/s', 1)
+subject_distance = setter('Expected distance of animal from sensor/m', 1.0)
+animal_speed = setter('Min. animal trigger speed/m/s', 1.0)
 focal_len = setter('Camera focal length/m (ADVANCED)', 3.6e-3)
 pixel_size = setter('Pixel size/m (ADVANCED)', 1.4e-6)
 num_pixels = setter('Number of pixels on sensor (width) (ADVANCED)', 2592)

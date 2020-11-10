@@ -104,3 +104,9 @@ class MotionFilter:
             bool: `True` if the SoTV is at least the threshold, otherwise `False`
         """
         return self.run_raw(motion_frame) >= self.threshold_sotv
+
+    def reset(self):
+        """Reset the internal IIR filter's memory to zero
+        """
+        self.x_iir_filter.reset()
+        self.y_iir_filter.reset()

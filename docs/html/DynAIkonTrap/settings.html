@@ -123,7 +123,7 @@ camera = DynAIkonTrap.camera.Camera(settings=settings.camera)
 </dd>
 <dt id="DynAIkonTrap.settings.FilterSettings"><code class="flex name class">
 <span>class <span class="ident">FilterSettings</span></span>
-<span>(</span><span>motion: <a title="DynAIkonTrap.settings.MotionFilterSettings" href="#DynAIkonTrap.settings.MotionFilterSettings">MotionFilterSettings</a> = MotionFilterSettings(small_threshold=10, sotv_threshold=300.0, iir_cutoff_hz=2.0, iir_order=8, iir_attenuation=20), animal: <a title="DynAIkonTrap.settings.AnimalFilterSettings" href="#DynAIkonTrap.settings.AnimalFilterSettings">AnimalFilterSettings</a> = AnimalFilterSettings(threshold=0.2), motion_queue: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a> = MotionQueueSettings(smoothing_factor=0.5, max_sequence_period_s=10.0))</span>
+<span>(</span><span>motion: <a title="DynAIkonTrap.settings.MotionFilterSettings" href="#DynAIkonTrap.settings.MotionFilterSettings">MotionFilterSettings</a> = MotionFilterSettings(small_threshold=10, sotv_threshold=300.0, iir_cutoff_hz=2.0, iir_order=3, iir_attenuation=35), animal: <a title="DynAIkonTrap.settings.AnimalFilterSettings" href="#DynAIkonTrap.settings.AnimalFilterSettings">AnimalFilterSettings</a> = AnimalFilterSettings(threshold=0.2), motion_queue: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a> = MotionQueueSettings(smoothing_factor=0.5, max_sequence_period_s=10.0))</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Settings for a <code><a title="DynAIkonTrap.filtering.filtering.Filter" href="filtering/filtering.html#DynAIkonTrap.filtering.filtering.Filter">Filter</a></code></p></div>
@@ -145,7 +145,7 @@ camera = DynAIkonTrap.camera.Camera(settings=settings.camera)
 </dd>
 <dt id="DynAIkonTrap.settings.MotionFilterSettings"><code class="flex name class">
 <span>class <span class="ident">MotionFilterSettings</span></span>
-<span>(</span><span>small_threshold: int = 10, sotv_threshold: float = 300.0, iir_cutoff_hz: float = 2.0, iir_order: int = 8, iir_attenuation: int = 20)</span>
+<span>(</span><span>small_threshold: int = 10, sotv_threshold: float = 300.0, iir_cutoff_hz: float = 2.0, iir_order: int = 3, iir_attenuation: int = 35)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Settings for a <code><a title="DynAIkonTrap.filtering.motion.MotionFilter" href="filtering/motion.html#DynAIkonTrap.filtering.motion.MotionFilter">MotionFilter</a></code></p></div>
@@ -308,7 +308,7 @@ camera = DynAIkonTrap.camera.Camera(settings=settings.camera)
 </dd>
 <dt id="DynAIkonTrap.settings.Settings"><code class="flex name class">
 <span>class <span class="ident">Settings</span></span>
-<span>(</span><span>camera: <a title="DynAIkonTrap.settings.CameraSettings" href="#DynAIkonTrap.settings.CameraSettings">CameraSettings</a> = CameraSettings(framerate=20, resolution=(640, 480)), filter: <a title="DynAIkonTrap.settings.FilterSettings" href="#DynAIkonTrap.settings.FilterSettings">FilterSettings</a> = FilterSettings(motion=MotionFilterSettings(small_threshold=10, sotv_threshold=300.0, iir_cutoff_hz=2.0, iir_order=8, iir_attenuation=20), animal=AnimalFilterSettings(threshold=0.2), motion_queue=MotionQueueSettings(smoothing_factor=0.5, max_sequence_period_s=10.0)), sensor: <a title="DynAIkonTrap.settings.SensorSettings" href="#DynAIkonTrap.settings.SensorSettings">SensorSettings</a> = SensorSettings(port='/dev/ttyUSB0', baud=57600, interval_s=30.0), output: Union[<a title="DynAIkonTrap.settings.SenderSettings" href="#DynAIkonTrap.settings.SenderSettings">SenderSettings</a>, <a title="DynAIkonTrap.settings.WriterSettings" href="#DynAIkonTrap.settings.WriterSettings">WriterSettings</a>] = WriterSettings(device_id=0, output_format=&lt;OutputFormat.STILL: 1&gt;, output_mode=&lt;OutputMode.DISK: 0&gt;, path=&#x27;&#x27;))</span>
+<span>(</span><span>camera: <a title="DynAIkonTrap.settings.CameraSettings" href="#DynAIkonTrap.settings.CameraSettings">CameraSettings</a> = CameraSettings(framerate=20, resolution=(640, 480)), filter: <a title="DynAIkonTrap.settings.FilterSettings" href="#DynAIkonTrap.settings.FilterSettings">FilterSettings</a> = FilterSettings(motion=MotionFilterSettings(small_threshold=10, sotv_threshold=300.0, iir_cutoff_hz=2.0, iir_order=3, iir_attenuation=35), animal=AnimalFilterSettings(threshold=0.2), motion_queue=MotionQueueSettings(smoothing_factor=0.5, max_sequence_period_s=10.0)), sensor: <a title="DynAIkonTrap.settings.SensorSettings" href="#DynAIkonTrap.settings.SensorSettings">SensorSettings</a> = SensorSettings(port='/dev/ttyUSB0', baud=57600, interval_s=30.0), output: Union[<a title="DynAIkonTrap.settings.SenderSettings" href="#DynAIkonTrap.settings.SenderSettings">SenderSettings</a>, <a title="DynAIkonTrap.settings.WriterSettings" href="#DynAIkonTrap.settings.WriterSettings">WriterSettings</a>] = WriterSettings(device_id=0, output_format=&lt;OutputFormat.STILL: 1&gt;, output_mode=&lt;OutputMode.DISK: 0&gt;, path=&#x27;&#x27;))</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Settings for the camera trap system. A class of nested classes and variables to represent all tunable parameters in the system.</p></div>

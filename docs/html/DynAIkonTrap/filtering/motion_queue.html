@@ -114,7 +114,7 @@ while True:
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue"><code class="flex name class">
 <span>class <span class="ident">MotionQueue</span></span>
-<span>(</span><span>settings: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="../settings.html#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a>, animal_detector: <a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="animal.html#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a>, output_callback: Callable[[List[Frame]], Any], framerate: int)</span>
+<span>(</span><span>settings: <a title="DynAIkonTrap.settings.MotionQueueSettings" href="../settings.html#DynAIkonTrap.settings.MotionQueueSettings">MotionQueueSettings</a>, animal_detector: <a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="animal.html#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a>, framerate: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A queue for sequences of motion to be analysed by the animal filter</p>
@@ -142,6 +142,17 @@ while True:
 </code></dt>
 <dd>
 <div class="desc"><p>End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter.</p></div>
+</dd>
+<dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.get"><code class="name flex">
+<span>def <span class="ident">get</span></span>(<span>self) ‑> <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Retrieve the next animal <code>Frame</code> from the motion queue's output</p>
+<h2 id="returns">Returns</h2>
+<dl>
+<dt><code>Frame</code></dt>
+<dd>An animal frame</dd>
+</dl></div>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.is_idle"><code class="name flex">
 <span>def <span class="ident">is_idle</span></span>(<span>self) ‑> bool</span>
@@ -280,6 +291,7 @@ while True:
 <ul class="">
 <li><code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue.close" href="#DynAIkonTrap.filtering.motion_queue.MotionQueue.close">close</a></code></li>
 <li><code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue.end_motion_sequence" href="#DynAIkonTrap.filtering.motion_queue.MotionQueue.end_motion_sequence">end_motion_sequence</a></code></li>
+<li><code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue.get" href="#DynAIkonTrap.filtering.motion_queue.MotionQueue.get">get</a></code></li>
 <li><code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue.is_idle" href="#DynAIkonTrap.filtering.motion_queue.MotionQueue.is_idle">is_idle</a></code></li>
 <li><code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue.put" href="#DynAIkonTrap.filtering.motion_queue.MotionQueue.put">put</a></code></li>
 </ul>

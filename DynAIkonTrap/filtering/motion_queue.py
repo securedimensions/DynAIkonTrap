@@ -34,9 +34,9 @@ The modularity here means Different implementations for animal filtering and mot
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Callable
+from typing import List
 from enum import Enum
-from multiprocessing import Process, Queue
+from multiprocessing import Event, Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from time import time
 
@@ -170,7 +170,6 @@ class MotionQueue:
         self,
         settings: MotionQueueSettings,
         animal_detector: AnimalFilter,
-        output_callback: 'Callable[[List[Frame]], Any]',
         framerate: int,
     ):
         """
@@ -185,7 +184,10 @@ class MotionQueue:
         self._current_sequence = MotionSequence(self._smoothing_len)
         self._queue: QueueType[MotionSequence] = Queue()
         self._animal_detector = animal_detector
-        self._output_callback = output_callback
+        self._output_queue: QueueType[Frame] = Queue()
+
+        self._idle = Event()
+        self._idle.set()
 
         self._process = Process(target=self._process_queue, daemon=True)
         self._process.start()
@@ -197,6 +199,7 @@ class MotionQueue:
             frame (Frame): A frame of motion and image data to be analysed
             motion_score (float): Output value for this frame from the motion filtering stage
         """
+        self._idle.clear()
         self._current_sequence.put(frame, motion_score)
         if len(self._current_sequence) >= self._sequence_len:
             self.end_motion_sequence()
@@ -215,10 +218,9 @@ class MotionQueue:
             )
 
     def _process_queue(self):
-
         while True:
-
             sequence = self._queue.get()
+            self._idle.clear()
 
             t_start = time()
             frame = sequence.get_highest_priority()
@@ -243,11 +245,20 @@ class MotionQueue:
             )
             output = list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
             output += [None] if len(output) > 0 else []
-            self._output_callback(output)
+            [self._output_queue.put(f) for f in output]
+            self._idle.set()
 
     def is_idle(self) -> bool:
         """Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future."""
-        return self._queue.empty()
+        return (self._queue.qsize() == 0) and self._idle.is_set()
+
+    def get(self) -> Frame:
+        """Retrieve the next animal `Frame` from the motion queue's output
+
+        Returns:
+            Frame: An animal frame
+        """
+        return self._output_queue.get()
 
     def close(self):
         self._process.terminate()
