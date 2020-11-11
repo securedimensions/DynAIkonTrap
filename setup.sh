@@ -1,28 +1,28 @@
 #! /bin/bash
 
 ## Start by checking the necessary Python version exists
-check_version() {
-    version=$($1 --version | awk '{print $2}')
-    minor=$(echo $version | awk -F. 'OFS="." {print $2}')
-    if [ $minor -lt 7 ]
+possible_pythons=$(find /usr/bin/python* -maxdepth 1 -type f -printf "%f\n")
+
+python_command=0
+for possible_python in $possible_pythons; do
+    major=$(echo $possible_python | awk -F. '/python[0-9]*\.[0-9]*$/ {print $1}')
+    minor=$(echo $possible_python | awk -F. '/python[0-9]*\.[0-9]*$/ {print $2}')
+
+    if [ "$major" == "python3" ]
     then
-        echo 0
-    else
-        echo 1
+        if [ $minor -ge 7 ]
+        then
+            python_command="$major.$minor"
+            break
+        fi
     fi
-}
+done
 
-python_command="python3"
-
-if [ $(check_version "python3") == 0 ]
+if [ $python_command == 0 ]
 then
-    if [ $(check_version "python3.7") == 0 ]
-    then
-        echo "Need python>=3.7"
-        exit -1
-    else
-        python_command="python3.7"
-    fi
+    echo "Need python >= 3.7; install with:"
+    echo "  apt install python3.7"
+    exit -1
 fi
 
 ## Create the virtual environment and activate

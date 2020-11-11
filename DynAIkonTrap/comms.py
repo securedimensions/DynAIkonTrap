@@ -22,6 +22,7 @@ from typing import Dict, IO, Tuple, List
 from tempfile import NamedTemporaryFile
 from io import StringIO
 from datetime import datetime, timezone
+from pathlib import Path
 from os import listdir
 from os.path import join
 from json import dump
@@ -286,16 +287,13 @@ class Sender(Output):
 
 class Writer(Output):
     def __init__(self, settings: WriterSettings, read_from: Tuple[Filter, SensorLogs]):
-        if settings.path == '':
-            from os.path import abspath, dirname
 
-            self._path = dirname(dirname(abspath(__file__)))  # Root of cloned git repo
-        else:
-            self._path = settings.path
+        path = Path(settings.path).expanduser()
+        path.mkdir(parents=True, exist_ok=True)
+        self._path = path.resolve()
 
         super().__init__(settings, read_from)
         logger.debug('Writer started (format: {})'.format(settings.output_format))
-        
 
     def _unique_name(self, capture_time: float) -> str:
 

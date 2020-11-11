@@ -204,3 +204,7 @@ class SensorLogs:
 
         self._query_queue.put(timestamp)
         return self._results_queue.get()
+
+    def close(self):
+        self._logger.terminate()
+        self._logger.join()

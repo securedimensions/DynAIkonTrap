@@ -28,8 +28,8 @@ logger = get_logger(__name__)
 
 @dataclass
 class Frame:
-    """A frame from the camera consisting of motion and image information as well as the time of capture.
-    """
+    """A frame from the camera consisting of motion and image information as well as the time of capture."""
+
     image: bytes
     motion: np.ndarray
     timestamp: float
@@ -80,7 +80,6 @@ class Camera:
         self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
         sleep(2)  # Camera warmup
 
-        self._no_frames = False
         self._output: QueueType[Frame] = Queue()
         synchroniser = Synchroniser(self._output)
         self._camera.start_recording(
@@ -103,16 +102,12 @@ class Camera:
             Frame: A frame from the camera video stream
         """
         try:
-            return self._output.get_nowait()
+            return self._output.get(1 / self.framerate)
+
         except Empty:
-            # Tell the user no frames were recorded
-            if not self._no_frames:
-                logger.error('No frames available from Camera')
-                self._no_frames = True
-                raise Empty
-            # Block until new frames arrive if get called again
-            else:
-                return self._output.get()
+            logger.error('No frames available from Camera')
+            self._no_frames = True
+            raise Empty
 
     def empty(self) -> bool:
         """Indicates if the queue of buffered frames is empty
@@ -124,4 +119,3 @@ class Camera:
 
     def close(self):
         self._camera.stop_recording()
-
