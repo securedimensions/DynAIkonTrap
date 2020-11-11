@@ -53,11 +53,11 @@ class IntegrationSendStillsOutTestCase(TestCase):
         settings.camera.resolution = data['resolution']
         settings.output = SenderSettings(0, OutputFormat.STILL, OutputMode.SEND, '', '')
 
-        camera = MockCamera(settings.camera, data['frames'])
-        filters = Filter(read_from=camera, settings=settings.filter)
-        sensor_logs = SensorLogs(settings=settings.sensor)
+        self.camera = MockCamera(settings.camera, data['frames'])
+        self.filters = Filter(read_from=self.camera, settings=settings.filter)
+        self.sensor_logs = SensorLogs(settings=settings.sensor)
         self.sender = SenderMock(
-            settings=settings.output, read_from=(filters, sensor_logs)
+            settings=settings.output, read_from=(self.filters, self.sensor_logs)
         )
 
 
@@ -70,3 +70,8 @@ class IntegrationSendStillsOutTestCase(TestCase):
 
             if time() - t_start >= 50:
                 self.fail('Timed out')
+
+    def tearDown(self):
+        self.sender.close()
+        self.sensor_logs.close()
+        self.filters.close()
