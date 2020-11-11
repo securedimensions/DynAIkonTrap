@@ -43,6 +43,9 @@ The JSON file should be structured as follows (of course the values can be chang
         "POST": "capture/",
         "device_id": 0,
         "output_format": 0
+    },
+    "logging": {
+        "level": "INFO"
     }
 }
 ```
@@ -147,6 +150,14 @@ class FilterSettings:
 
 
 @dataclass
+class LoggerSettings:
+    """Settings for logging"""
+
+    level: str = 'INFO'  # Literal['DEBUG', 'INFO', 'WARNING', 'ERROR']
+    # `Literal` is not supported in Python from RPi packages, hence no proper type hint
+
+
+@dataclass
 class Settings:
     """Settings for the camera trap system. A class of nested classes and variables to represent all tunable parameters in the system."""
 
@@ -154,6 +165,7 @@ class Settings:
     filter: FilterSettings = FilterSettings()
     sensor: SensorSettings = SensorSettings()
     output: Union[SenderSettings, WriterSettings] = WriterSettings()
+    logging: LoggerSettings = LoggerSettings()
 
 
 def load_settings() -> Settings:
@@ -205,6 +217,7 @@ def load_settings() -> Settings:
                     ),
                     SensorSettings(**settings_json['sensor']),
                     output,
+                    LoggerSettings(**settings_json['logging']),
                 )
 
             except KeyError as e:

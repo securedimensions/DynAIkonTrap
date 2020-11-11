@@ -1,4 +1,5 @@
 import argparse
+from logging import getLogger
 from multiprocessing import Queue
 from queue import Empty
 from time import sleep
@@ -46,6 +47,8 @@ class Tester:
         signal(SIGINT, handler)
 
         settings = load_settings()
+        getLogger().setLevel('ERROR')
+        
         settings.camera.framerate = self._data['framerate']
         settings.camera.resolution = self._data['resolution']
 

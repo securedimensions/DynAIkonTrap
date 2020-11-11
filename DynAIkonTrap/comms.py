@@ -20,7 +20,7 @@ meta = {
 from multiprocessing import Process
 from typing import Dict, IO, Tuple, List
 from tempfile import NamedTemporaryFile
-from io import BytesIO, StringIO
+from io import StringIO
 from datetime import datetime, timezone
 from os import listdir
 from os.path import join
@@ -160,7 +160,7 @@ class Output:
 
             log = self._sensor_logs.get(frame.timestamp)
             if log is None:
-                logger.warn('No sensor readings')
+                logger.warning('No sensor readings')
                 self.output_still(image=frame.image, time=frame.timestamp)
             else:
                 self.output_still(
@@ -262,6 +262,7 @@ class Sender(Output):
         try:
             r = post(self._server + self._path_POST, data=meta, files=files_dict)
             r.raise_for_status()
+            logger.info('Image sent')
         except HTTPError as e:
             logger.error(e)
         except ConnectionError as e:
@@ -273,10 +274,10 @@ class Sender(Output):
             'video': ('video', video, 'video/mp4'),
             'caption': ('caption', caption, 'text/vtt'),
         }
-        logger.debug('Sending video, meta = {}'.format(meta))
         try:
             r = post(self._server + self._path_POST, data=meta, files=files_dict)
             r.raise_for_status()
+            logger.info('Video sent')
         except HTTPError as e:
             logger.error(e)
         except ConnectionError as e:
@@ -293,6 +294,8 @@ class Writer(Output):
             self._path = settings.path
 
         super().__init__(settings, read_from)
+        logger.debug('Writer started (format: {})'.format(settings.output_format))
+        
 
     def _unique_name(self, capture_time: float) -> str:
 
@@ -329,7 +332,7 @@ class Writer(Output):
 
         with open(name + '.json', 'wb') as f:
             dump(meta, f)
-        logger.debug('Image and meta-data saved')
+        logger.info('Image and meta-data saved')
 
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
         name = self._unique_name(time)
@@ -340,4 +343,4 @@ class Writer(Output):
         with open(name + '.vtt', 'w') as f:
             f.write(caption.getvalue())
 
-        logger.debug('Video and caption saved')
+        logger.info('Video and caption saved')

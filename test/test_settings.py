@@ -3,7 +3,9 @@ from os import listdir, replace, remove
 from json import dump
 
 from DynAIkonTrap.settings import (
-    OutputMode, load_settings,
+    LoggerSettings,
+    OutputMode,
+    load_settings,
     Settings,
     CameraSettings,
     FilterSettings,
@@ -94,6 +96,7 @@ class SettingsDoesExistTestCase(TestCase):
                 "device_id": -17,
                 "output_format": 0,
             },
+            "logging": {"level": "DEBUG"},
         }
         self._settings = Settings(
             CameraSettings(-1, [-2, -3]),
@@ -103,7 +106,8 @@ class SettingsDoesExistTestCase(TestCase):
                 MotionQueueSettings(-10, -11),
             ),
             SensorSettings(-12, -13, -14),
-            SenderSettings(-17, OutputFormat(0), OutputMode(1), -15, -16)
+            SenderSettings(-17, OutputFormat(0), OutputMode(1), -15, -16),
+            LoggerSettings('DEBUG'),
         )
 
         with open('DynAIkonTrap/settings.json', 'w') as f:
