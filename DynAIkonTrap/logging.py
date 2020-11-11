@@ -8,9 +8,8 @@ logger = get_logger(__name__)
 logger.error('A dreadful thing is happening')
 ```
 """
-from logging import Logger, getLogger, StreamHandler, Formatter, DEBUG, INFO
-
-LOG_LEVEL = DEBUG
+from logging import Logger, basicConfig, getLogger
+from os import getenv
 
 
 def get_logger(name: str) -> Logger:
@@ -22,10 +21,9 @@ def get_logger(name: str) -> Logger:
     Returns:
         Logger: A `Logger` instance. Call the standard info, warning, error, etc. functions to generate
     """
-    logger = getLogger(name)
-    logger.setLevel(LOG_LEVEL)
-    _ch = StreamHandler()
-    _ch.setLevel(LOG_LEVEL)
-    _ch.setFormatter(Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(_ch)
-    return logger
+    logging_level = getenv('logging', 'DEBUG')
+    basicConfig(
+        level=logging_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    )
+    return getLogger(name)

@@ -1,3 +1,4 @@
+from logging import getLogger
 from signal import signal, SIGINT
 
 from DynAIkonTrap.camera import Camera  # , MockCamera
@@ -17,6 +18,7 @@ print('You can halt execution with <Ctrl>+C anytime\n')
 
 
 settings = load_settings()
+getLogger().setLevel(settings.logging.level)
 
 camera = Camera(settings=settings.camera)
 filters = Filter(read_from=camera, settings=settings.filter)

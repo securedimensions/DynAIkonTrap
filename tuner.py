@@ -134,6 +134,12 @@ else:
 
 settings.output.device_id = setter('Device ID', settings.output.device_id)
 
+print('\nLogging level')
+print('---------------')
+settings.logging.level = setter(
+    'Level from `DEBUG`, `INFO`, `WARNING`, `ERROR`', settings.logging.level
+)
+
 
 def serialise(obj):
     if isinstance(obj, Settings):

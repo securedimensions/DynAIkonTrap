@@ -32,5 +32,8 @@
         "output_mode": 0,
         "output_format": 0,
         "device_id": 0
+    },
+    "logging": {
+        "level": "INFO"
     }
 }
