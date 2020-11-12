@@ -14,6 +14,8 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
     - GitLab does not actually render the HTML pages
 
 ## Getting Started
+> You will need `git` installed on your Raspberry Pi. Do this by running `sudo apt install git`.
+
 Once you have a Raspberry Pi with a camera set up, just run the setup script:
 
 ```sh
