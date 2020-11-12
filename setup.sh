@@ -1,5 +1,7 @@
 #! /bin/bash
 
+echo "Installation starting. This may take a while, so please be patient."
+
 ## Start by checking the necessary Python version exists
 possible_pythons=$(find /usr/bin/python* -maxdepth 1 -type f -printf "%f\n")
 
@@ -28,6 +30,9 @@ fi
 ## Create the virtual environment and activate
 $python_command -m venv venv
 source ./venv/bin/activate
+
+## Ensure pip is up-to-date
+python -m pip install --upgrade pip
 
 ## Install the requiremnts
 pip install -r requirements.txt
