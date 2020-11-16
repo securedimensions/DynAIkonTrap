@@ -9,28 +9,33 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
 - [Tuning the System](#tuning-the-system)
 - [Evaluation](#evaluation)
 - [Wiki](https://gitlab.dynaikon.com/c4c/dynaikontrap/-/wikis/)
+- [FAQ](#faq)
 - [Source code documentation](docs/html)
     - You will need to view these files via your browser after downloading
     - GitLab does not actually render the HTML pages
 
 ## Getting Started
-> You will need `git` installed on your Raspberry Pi. Do this by running `sudo apt install git`.
-
-Once you have a Raspberry Pi with a camera set up, just run the setup script:
-
-```sh
-# Installs all required libraries into a Python virtual environment.
-./setup.sh
-```
-
-Then you can start the camera trap program by running:
-
-```sh
-# Activates the virtual environment
-source ./venv/bin/activate
-# and starts the program
-python -m DynAIkonTrap
-```
+Follow these steps to get up and running quickly with default settings.
+1. Connect the camera to your Raspberry Pi and enable it in settings (`sudo raspi-config`)
+1. Download the code e.g.
+    ```sh
+    # Download
+    git clone http://gitlab.dynaikon.com/c4c/dynaikontrap.git
+    # Enter the directory
+    cd dynaikontrap
+    ```
+1. Run the setup script
+    ```sh
+    # Installs all required libraries into a Python virtual environment.
+    ./setup.sh
+    ```
+1. Start the camera trap program by running:
+    ```sh
+    # Activates the virtual environment
+    source ./venv/bin/activate
+    # and starts the program
+    python -m DynAIkonTrap
+    ```
 
 Be sure to check out the wiki for more information on deploying the system, including advice on power supplies and case designs.
 
@@ -125,3 +130,28 @@ If you are interested in more detailed information, have a look at the project's
 As with any project there is always room for improvement. Below a few areas of particular interest for further development of the project have been identified:
 - Motion queue prioritisation approach
     - At the moment this is done based on the largest SoTV, but there are probably better approaches
+
+## FAQ
+<details>
+<summary>Do I need to run <code>source ./venv/bin/activate</code> every time I restart the Pi?</summary>
+
+That command enables the virtual environment we installed the project into. You only need to run it once after the Raspberry Pi boots up i.e. once per restart. If you don't like typing the whole command consider adding an alias to your .bashrc file. In fact you may want to add an alias for activating the virtual environment and starting the camera trap code.
+
+If you don't know what that means, don't worry just do the following:
+1. Open the file at the path `~/.bashrc` in any text editor e.g.
+    ```sh
+    nano ~/.bashrc
+    ```
+1. Add the following line to the file:
+    ```sh
+    alias start="cd ~/dynaikontrap && source ./venv/bin/activate && python -m DynAIkonTrap"
+    ```
+    
+    With this you're telling the computer "when I type `start`, enter the project directory, activate the virtual environment, and run the camera trap code".
+
+1. Quit using `<ctrl>`+`x`. Confirm saving changes with `y` then `<enter>`.
+
+    If you want the command to work immediately run `source ~/.bashrc` to apply the changes you just made. This also happens when you log out and back in.
+1. From now on type `start` to run the code.
+
+</details>
