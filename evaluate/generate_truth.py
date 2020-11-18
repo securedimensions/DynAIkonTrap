@@ -70,4 +70,4 @@ name = '.'.join(args.filename.split('.')[:-1])
 with open('{}.truth.pk'.format(name), 'wb') as f:
     dump(truth, f)
 
-print('Truth saved to `data.truth.pk`')
+print('Truth saved to `{}.truth.pk`'.format(name))
