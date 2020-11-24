@@ -130,6 +130,10 @@ If you are interested in more detailed information, have a look at the project's
 As with any project there is always room for improvement. Below a few areas of particular interest for further development of the project have been identified:
 - Motion queue prioritisation approach
     - At the moment this is done based on the largest SoTV, but there are probably better approaches
+- Facilitating external triggers
+    - The motivation of this project was to remove the reliance on external triggers for camera traps, but it may be desirable to add a "external trigger" filtering stage to the pipeline.
+- Throttle the output
+    - If bandwidth/storage is limited and costly throttling how many images are recorded per second may be useful. This should not come at a cost to precision. Previous prototypes have been tested with such a stage and worked.
 
 ## FAQ
 <details>
@@ -155,3 +159,7 @@ If you don't know what that means, don't worry just do the following:
 1. From now on type `start` to run the code.
 
 </details>
+
+---
+
+![This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 863463](docs/images/c4c_eu_funding.png)
