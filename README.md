@@ -17,6 +17,10 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
 ## Getting Started
 Follow these steps to get up and running quickly with default settings.
 1. Connect the camera to your Raspberry Pi and enable it in settings (`sudo raspi-config`)
+    - If you are on a newly setup Raspberry Pi it's worth updating before proceeding:
+    ```sh
+    sudo apt update && sudo apt upgrade
+    ```
 1. Download the code e.g.
     ```sh
     # Download
@@ -38,6 +42,8 @@ Follow these steps to get up and running quickly with default settings.
     ```
 
 Be sure to check out the wiki for more information on deploying the system, including advice on power supplies and case designs.
+
+If you are installing on a non-Rapsberry Pi platform check [this wiki page](https://gitlab.dynaikon.com/c4c/dynaikontrap/-/wikis/Software-Setup#installation-on-other-platforms-not-raspberry-pi) for additional guidance.
 
 ## Tuning the System
 The system has many parameters that can be tuned to be optimal for any given deployment.
