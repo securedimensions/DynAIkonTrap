@@ -2,7 +2,7 @@ import argparse
 from logging import getLogger
 from multiprocessing import Queue
 from queue import Empty
-from time import sleep
+from time import sleep, time
 import sys
 from pickle import load
 
@@ -16,7 +16,6 @@ class MockCamera:
         self._data = data
         self._queue = Queue()
 
-    def go(self):
         for i, d in enumerate(self._data):
             self._queue.put(Frame(d['image'], d['motion'], i))
 
@@ -53,15 +52,16 @@ class Tester:
         settings.camera.resolution = self._data['resolution']
 
         camera = MockCamera(settings.camera, self._data['frames'])
-        filters = Filter(read_from=camera, settings=settings.filter)
 
-        camera.go()
+        t_start = time()
+        filters = Filter(read_from=camera, settings=settings.filter)
 
         ## Wait until processing is complete
         while True:
+            sleep(0.1)
             if filters._motion_queue.is_idle() and camera._queue.qsize() == 0:
                 break
-            sleep(0.1)
+        t_stop = time() - 0.1
 
         ## Retrieve the detected animal frames
         frames = []
@@ -97,6 +97,11 @@ class Tester:
         print(
             '{} of {} frames deemed to contain an animal'.format(
                 sum(results), len(self._data['frames'])
+            )
+        )
+        print(
+            'Processed @ (average) {:.2f}FPS'.format(
+                len(self._data['frames']) / (t_stop - t_start)
             )
         )
 
