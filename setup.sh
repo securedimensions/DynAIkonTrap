@@ -39,10 +39,10 @@ then
 fi
 
 ## Ensure virtual environment package is installed
-dpkg -s python3-venv > /dev/null 2>&1
+dpkg -s $python_command-venv > /dev/null 2>&1
 if [ $? -ne 0 ]
 then
-    sudo -p "[sudo] password to install virtual environment> " apt install -y python3-venv
+    sudo -p "[sudo] password to install virtual environment> " apt install -y python3-venv $python_command-venv
 fi
 
 ## Create the virtual environment and activate
