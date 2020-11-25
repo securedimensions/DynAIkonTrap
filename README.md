@@ -1,5 +1,5 @@
 # DynAIkonTrap
-*An AI-enabled camera trap design targeted at the Raspberry Pi platform.*
+*An AI-enabled camera trap design targeted at the **Raspberry Pi** platform.*
 
 DynAIkonTrap makes use of a continuous stream from a camera attached to the Raspberry Pi, analysing only the stream to detect animals. Animal detections can be used to save or send individual frames from the video, or even whole video segments. The beauty of this is that the system does not rely on any secondary sensors like PIR sensors and acts on exactly what the camera sees.
 
@@ -15,12 +15,18 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
     - GitLab does not actually render the HTML pages
 
 ## Getting Started
+> **Check [here](https://gitlab.dynaikon.com/c4c/dynaikontrap/-/wikis/Software-Setup#installation-on-other-platforms-not-raspberry-pi) if you are not installing on a Raspberry Pi. Note: the full software will only run on a Raspberry Pi.**
+
 Follow these steps to get up and running quickly with default settings.
 1. Connect the camera to your Raspberry Pi and enable it in settings (`sudo raspi-config`)
     - If you are on a newly setup Raspberry Pi it's worth updating before proceeding:
-    ```sh
-    sudo apt update && sudo apt upgrade
-    ```
+        ```sh
+        sudo apt update && sudo apt upgrade -y
+        ```
+    - You may also need to install git:
+        ```sh
+        sudo apt install git -y
+        ```
 1. Download the code e.g.
     ```sh
     # Download
