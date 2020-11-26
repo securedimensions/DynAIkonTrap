@@ -1,3 +1,18 @@
+# DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 This module provides a general interface to a motion filtering stage. The motion filter determines if a frame contains sufficient motion to be of interest for passing on to the `DynAIkonTrap.filtering.animal.AnimalFilter` stage. This stage in the pipeline is what allows the system to operate at video framerates as it allows the removal of empty frames that do not need to be analysed by an animal detector. Any method employed in the `MotionFilter` must therefore be able to operate fast enough that it does not form a bottleneck in the system.
 
