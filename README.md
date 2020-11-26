@@ -60,6 +60,8 @@ source ./venv/bin/activate
 python tuner.py
 ```
 
+See [this wiki page](https://gitlab.dynaikon.com/c4c/dynaikontrap/-/wikis/Software-Setup#tuning) for guidance on what each option/seting is for.
+
 ## Evaluation
 The software is accompanied by some evaluation tools to make it easier for you to see how tweaking the settings can affect system performance. You can follow the recommended approach for generating test data sequences with your Raspberry Pi, or convert existing videos to test data if you are feeling adventurous.
 
