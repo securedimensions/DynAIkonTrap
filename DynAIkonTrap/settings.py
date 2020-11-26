@@ -1,3 +1,18 @@
+# DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 The mechanism by which the tunable settings may be loaded into the system. Whilst this may look complicated at first, it provides a simple method to access all of the settings without needing to index into/get from a dictionary. This also means IDEs are able to perform autocompletion and provide type hints as the settings are unpacked in their respective places in the system.
 
