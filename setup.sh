@@ -1,3 +1,4 @@
+#! /bin/bash
 # DynAIkonTrap is an AI-infused camera trapping software package.
 # Copyright (C) 2020 Miklas Riechmann
 
@@ -13,8 +14,6 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-#! /bin/bash
 
 echo "Installation starting. This may take a while, so please be patient."
 
@@ -40,18 +39,41 @@ if [ $python_command == 0 ]
 then
     echo "Need python >= 3.7; install with:"
     echo "  sudo apt install python3.7"
-    exit -1
+    exit
 fi
 
 ## Install dependencies
-sudo -p "[sudo] password to install dependencies> " apt install -y libaom0 libatlas3-base libavcodec58 libavformat58 libavutil56 libbluray2 libcairo2 libchromaprint1 libcodec2-0.8.1 libcroco3 libdatrie1 libdrm2 libfontconfig1 libgdk-pixbuf2.0-0 libgfortran5 libgme0 libgraphite2-3 libgsm1 libharfbuzz0b libilmbase23 libjbig0 libmp3lame0 libmpg123-0 libogg0 libopenexr23 libopenjp2-7 libopenmpt0 libopus0 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 libpixman-1-0 librsvg2-2 libshine3 libsnappy1v5 libsoxr0 libspeex1 libssh-gcrypt-4 libswresample3 libswscale5 libthai0 libtheora0 libtiff5 libtwolame0 libva-drm2 libva-x11-2 libva2 libvdpau1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx5 libwavpack1 libwebp6 libwebpmux3 libx264-155 libx265-165 libxcb-render0 libxcb-shm0 libxfixes3 libxrender1 libxvidcore4 libzvbi0
+sudo -p "[sudo] password to install dependencies> " apt install -y libaom0 libavcodec58 libavformat58 libavutil56 libcodec2-0.8.1 libilmbase23 libopenexr23 libswresample3 libswscale5 libx264-155 libx265-165
 
 if [ $? -ne 0 ]
 then
     echo "There was an error installing dependencies (see above)"
     echo "Are you sure your device is up-to-date, update with:"
     echo "  sudo apt update && sudo apt upgrade"
-    exit -1
+    echo ""
+    read -r -p "This is fine on non-Raspberry Pi systems; continue? [Y/n] " input
+ 
+    case $input in
+        [yY][eE][sS]|[yY])
+    ;;
+        [nN][oO]|[nN])
+    exit 1
+        ;;
+        *)
+    echo "Invalid input"
+    exit 1
+    ;;
+    esac
+fi
+
+sudo -p "[sudo] password to install dependencies> " apt install -y libatlas3-base libbluray2 libcairo2 libchromaprint1 libcroco3 libdatrie1 libdrm2 libfontconfig1 libgdk-pixbuf2.0-0 libgfortran5 libgme0 libgraphite2-3 libgsm1 libharfbuzz0b libjbig0 libmp3lame0 libmpg123-0 libogg0 libopenjp2-7 libopenmpt0 libopus0 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 libpixman-1-0 librsvg2-2 libshine3 libsnappy1v5 libsoxr0 libspeex1 libssh-gcrypt-4 libthai0 libtheora0 libtiff5 libtwolame0 libva-drm2 libva-x11-2 libva2 libvdpau1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx5 libwavpack1 libwebp6 libwebpmux3 libxcb-render0 libxcb-shm0 libxfixes3 libxrender1 libxvidcore4 libzvbi0
+
+if [ $? -ne 0 ]
+then
+    echo "There was an error installing dependencies (see above)"
+    echo "Are you sure your device is up-to-date, update with:"
+    echo "  sudo apt update && sudo apt upgrade"
+    exit
 fi
 
 ## Ensure virtual environment package is installed
@@ -76,5 +98,5 @@ then
     echo "Setup complete!"
 else
     echo "There was a problem, check above for information"
-    exit -1
+    exit
 fi
