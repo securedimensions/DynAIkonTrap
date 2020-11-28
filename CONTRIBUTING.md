@@ -11,7 +11,7 @@ This document is very light, but we may add more as time goes on.
 - [I would like to help](#i-would-like-to-help)
 
 ## I have a question
-You can check if your question already has an answer in the [FAQ](https://gitlab.dynaikon.com/c4c/dynaikontrap#faq) or [issues](https://gitlab.dynaikon.com/c4c/dynaikontrap/issues). If not, please do get in touch. You can do this by **[INSERT METHOD]**. Please bear in mind that we are a small team and it might take a little time for us to get back to you, but we'll try to respond as quickly as possible.
+You can check if your question already has an answer in the [FAQ](https://gitlab.dynaikon.com/c4c/dynaikontrap#faq) or [issues](https://gitlab.dynaikon.com/c4c/dynaikontrap/issues). If not, please do get in touch. You can do this by sending an email to cameratrap@dynaikon.com. Please bear in mind that we are a small team and it might take a little time for us to get back to you, but we'll try to respond as quickly as possible.
 
 ## I have found a bug
 We're sorry that you came across a problem. We'd really appreciate you sharing information about any bugs and issues you come across with us by using the [issues](https://gitlab.dynaikon.com/c4c/dynaikontrap/issues) forum. Before you do that double-check that the issue hasn't already been reported by searching through the issue forum. If the issue already exists please comment on that issue, that way everything stays in one place and it's easier for everyone involved to fix the problem.
