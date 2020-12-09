@@ -51,7 +51,7 @@ The modularity here means Different implementations for animal filtering and mot
 from dataclasses import dataclass
 from typing import List
 from enum import Enum
-from multiprocessing import Event, Process, Queue
+from multiprocessing import Event, Process, Queue, Value
 from multiprocessing.queues import Queue as QueueType
 from time import time
 
@@ -201,6 +201,14 @@ class MotionQueue:
         self._animal_detector = animal_detector
         self._output_queue: QueueType[Frame] = Queue()
 
+        self._mean_time = Value('d')
+        with self._mean_time.get_lock():
+            self._mean_time.value = 1 / 0.3
+
+        self._remaining_frames = Value('L')
+        with self._remaining_frames.get_lock():
+            self._remaining_frames.value = 0
+
         self._idle = Event()
         self._idle.set()
 
@@ -225,10 +233,15 @@ class MotionQueue:
         if current_len > 0:
             self._queue.put(self._current_sequence)
             self._current_sequence = MotionSequence(self._smoothing_len)
+
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value += current_len
+
             logger.info(
-                'End of motion; motion sequence queued ({} frames will take <=~{:.0f}s)'.format(
+                'End of motion ({} frames will take <=~{:.0f}s; {:.0f}s cumulative)'.format(
                     current_len,
-                    current_len / 0.3,  # 0.3 FPS is the slowest observed
+                    current_len * self._mean_time.value,
+                    self._remaining_frames.value * self._mean_time.value,
                 )
             )
 
@@ -237,10 +250,23 @@ class MotionQueue:
             sequence = self._queue.get()
             self._idle.clear()
 
+            # Timing full sequence
             t_start = time()
+
+            # Timing animal detector inference
+            t_actual_framerate = 0
+            inference_count = 0
+            t_temp = time()
+
             frame = sequence.get_highest_priority()
             while frame:
                 is_animal = self._animal_detector.run(frame.frame.image)
+
+                _t = time()
+                t_actual_framerate += _t - t_temp
+                t_temp = _t
+                inference_count += 1
+
                 if is_animal:
                     sequence.label_as_animal(frame)
                 else:
@@ -250,6 +276,13 @@ class MotionQueue:
             sequence.close_gaps()
             t_stop = time()
             t = t_stop - t_start
+
+            # Update average inferencing time
+            with self._mean_time.get_lock():
+                self._mean_time.value = (
+                    self._mean_time.value + t_actual_framerate / inference_count
+                ) / 2
+
             logger.info(
                 'It took {:.1f}s to process {} frames ({} animal) => ~{:.2f}FPS'.format(
                     t,
@@ -262,6 +295,10 @@ class MotionQueue:
             output += [None] if len(output) > 0 else []
             [self._output_queue.put(f) for f in output]
             self._idle.set()
+
+            # Update count of frames
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value -= len(sequence)
 
     def is_idle(self) -> bool:
         """Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future."""
