@@ -17,6 +17,8 @@
 
 echo "Installation starting. This may take a while, so please be patient."
 
+DIR="$(cd "$(dirname "$0")" && pwd)"
+
 ## Start by checking the necessary Python version exists
 possible_pythons=$(find /usr/bin/python* -maxdepth 1 -type f -printf "%f\n")
 
@@ -84,18 +86,29 @@ then
 fi
 
 ## Create the virtual environment and activate
-$python_command -m venv venv
-source ./venv/bin/activate
-
+(cd $DIR && $python_command -m venv venv && \
+source ./venv/bin/activate && \
+\
 ## Ensure pip is up-to-date
-python -m pip install --upgrade pip
-
+python -m pip install --upgrade pip && \
+\
 ## Install the requiremnts
-pip install -r requirements.txt
+pip install -r requirements.txt)
+
+## Create a "launcher" script that can also be called via `nohup`
+echo "#! /bin/bash" > "$DIR/dynaikontrap.sh"
+echo "(cd \"$DIR\" && source \"./venv/bin/activate\" && python -m DynAIkonTrap)" >> "$DIR/dynaikontrap.sh"
+chmod +x "$DIR/dynaikontrap.sh"
+
+## Place the script in /usr/local/bin/ so it be called from everywhere
+sudo mv "$DIR/dynaikontrap.sh" /usr/local/bin/dynaikontrap
 
 if [ $? -eq 0 ]
 then
+    echo ""
     echo "Setup complete!"
+    echo "Start the camera trap with:"
+    echo "  dynaikontrap"
 else
     echo "There was a problem, check above for information"
     exit
