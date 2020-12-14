@@ -4,6 +4,8 @@
 DynAIkonTrap makes use of a continuous stream from a camera attached to the Raspberry Pi, analysing only the stream to detect animals. Animal detections can be used to save or send individual frames from the video, or even whole video segments. The beauty of this is that the system does not rely on any secondary sensors like PIR sensors and acts on exactly what the camera sees.
 
 ## Useful Resources
+**We recommend checking out the [Software Setup](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup) guide for the easiest installation experience**
+
 - [Getting Started](#getting-started)
     - A quick-start guide that you can use to check everything works
 - [Tuning the System](#tuning-the-system)
@@ -41,10 +43,7 @@ Follow these steps to get up and running quickly with default settings.
     ```
 1. Start the camera trap program by running:
     ```sh
-    # Activates the virtual environment
-    source ./venv/bin/activate
-    # and starts the program
-    python -m DynAIkonTrap
+    dynaikontrap
     ```
 
 Be sure to check out the wiki for more information on deploying the system, including advice on power supplies and case designs.
@@ -56,7 +55,10 @@ The system has many parameters that can be tuned to be optimal for any given dep
 These settings are saved in a `settings.json` file using the JSON format. It is recommended to use the included tuning script to set these. Run this with:
 
 ```sh
+## Activate virtual environment
 source ./venv/bin/activate
+
+## Start the tuner
 python tuner.py
 ```
 
