@@ -3,6 +3,9 @@
 
 DynAIkonTrap makes use of a continuous stream from a camera attached to the Raspberry Pi, analysing only the stream to detect animals. Animal detections can be used to save or send individual frames from the video, or even whole video segments. The beauty of this is that the system does not rely on any secondary sensors like PIR sensors and acts on exactly what the camera sees.
 
+## Feedback
+We would appreciate it if you could spare 30 seconds to complete [this form](https://cloud.dynaikon.com/apps/forms/wA7EbqAPsFjTmanL) in return for free usage of our software. This will help us understand who is interested in the project and how we can improve it.
+
 ## Useful Resources
 **We recommend checking out the [Software Setup](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup) guide for the easiest installation experience**
 
