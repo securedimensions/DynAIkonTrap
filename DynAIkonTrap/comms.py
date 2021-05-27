@@ -343,7 +343,7 @@ class Writer(Output):
         with open(name + '.jpg', 'wb') as f:
             f.write(image)
 
-        with open(name + '.json', 'wb') as f:
+        with open(name + '.json', 'w') as f:
             dump(meta, f)
         logger.info('Image and meta-data saved')
 
