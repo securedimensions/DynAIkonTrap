@@ -15,6 +15,23 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from logging import getLogger
 from signal import signal, SIGINT
+from argparse import ArgumentParser
+
+
+def get_version_number() -> str:
+    with open('VERSION', 'r') as f:
+        version = f.readline().strip()
+    return version
+
+
+argparse = ArgumentParser(
+    prog='DynAIkonTrap',
+    description='An AI-enabled camera trap design targeted at the Raspberry Pi platform',
+)
+argparse.add_argument(
+    '--version', action='version', version='%(prog)s ' + get_version_number()
+)
+args = argparse.parse_args()
 
 from DynAIkonTrap.camera import Camera  # , MockCamera
 from DynAIkonTrap.filtering import Filter
