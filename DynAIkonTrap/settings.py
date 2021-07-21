@@ -132,12 +132,17 @@ class OutputMode(Enum):
     DISK = 0
     SEND = 1
 
+class OutputVideoCodec(Enum):
+    """System output video codec"""
+    H264 = 0
+    PIM1 = 1
 
 @dataclass
 class OutputSettings:
     device_id: Any = 0
     output_format: OutputFormat = OutputFormat.STILL
     output_mode: OutputMode = OutputMode.DISK
+    output_codec: OutputVideoCodec = OutputVideoCodec.H264
 
 
 @dataclass
@@ -212,6 +217,7 @@ def load_settings() -> Settings:
                             settings_json['output']['output_format']
                         ),
                         output_mode=output_mode,
+                        output_codec=OutputVideoCodec(settings_json['output']['output_codec']),
                     )
                 else:  # Default to writing to disk
                     output = WriterSettings(
@@ -220,6 +226,7 @@ def load_settings() -> Settings:
                             settings_json['output']['output_format']
                         ),
                         output_mode=output_mode,
+                        output_codec=OutputVideoCodec(settings_json['output']['output_codec']),
                         path=settings_json['output']['path'],
                     )
 

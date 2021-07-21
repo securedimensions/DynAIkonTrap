@@ -163,6 +163,8 @@ class Output:
         else:
             self._reader = Process(target=self._read_frames, daemon=True)
         self._reader.start()
+        self._videoCodec = settings.output_codec.name
+        self._videoSuffix = '.mp4' if settings.output_codec.name == 'H264' else '.avi'
 
     def close(self):
         self._reader.terminate()
@@ -210,11 +212,12 @@ class Output:
                 start_new = False
                 start_time = frame.timestamp
                 frame_timestamps = []
-                file = NamedTemporaryFile(suffix='.mp4')
+                
+                file = NamedTemporaryFile(suffix=self._videoSuffix)
 
                 writer = cv2.VideoWriter(
                     file.name,
-                    cv2.VideoWriter_fourcc(*'avc1'),
+                    cv2.VideoWriter_fourcc(*self._videoCodec),
                     self.framerate,
                     (decoded_image.shape[1], decoded_image.shape[0]),
                 )
@@ -306,6 +309,9 @@ class Writer(Output):
         path = Path(settings.path).expanduser()
         path.mkdir(parents=True, exist_ok=True)
         self._path = path.resolve()
+        self._videoCodec = settings.output_codec.name
+        self._videoSuffix = '.mp4' if self._videoCodec == 'H264' else '.avi'
+
 
         super().__init__(settings, read_from)
         logger.debug('Writer started (format: {})'.format(settings.output_format))
@@ -350,7 +356,7 @@ class Writer(Output):
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
         name = self._unique_name(time)
 
-        with open(name + '.mp4', 'wb') as f:
+        with open(name + self._videoSuffix, 'wb') as f:
             f.write(video.read())
 
         with open(name + '.vtt', 'w') as f:
