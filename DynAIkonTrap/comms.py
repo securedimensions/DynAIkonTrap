@@ -51,6 +51,7 @@ from DynAIkonTrap.filtering import Filter
 from DynAIkonTrap.sensor import SensorLogs, Reading
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import (
+    OutputVideoCodec,
     SenderSettings,
     OutputFormat,
     OutputSettings,
@@ -157,14 +158,20 @@ class Output:
         self._frame_queue = read_from[0]
         self._sensor_logs = read_from[1]
         self.framerate = self._frame_queue.framerate
+        self._video_codec = settings.output_codec.name
+        if settings.output_codec == OutputVideoCodec.H264:
+            self._video_suffix = '.mp4'
+        elif settings.output_codec == OutputVideoCodec.PIM1:
+            self._video_suffix = '.avi'
+        else:
+            logger.error("Invalid video codec (codec: {}); cannot form output suffix".format(settings.output_codec.name))
 
         if settings.output_format == OutputFormat.VIDEO:
             self._reader = Process(target=self._read_frames_to_video, daemon=True)
         else:
             self._reader = Process(target=self._read_frames, daemon=True)
         self._reader.start()
-        self._videoCodec = settings.output_codec.name
-        self._videoSuffix = '.mp4' if settings.output_codec.name == 'H264' else '.avi'
+        
 
     def close(self):
         self._reader.terminate()
@@ -213,11 +220,11 @@ class Output:
                 start_time = frame.timestamp
                 frame_timestamps = []
                 
-                file = NamedTemporaryFile(suffix=self._videoSuffix)
+                file = NamedTemporaryFile(suffix=self._video_suffix)
 
                 writer = cv2.VideoWriter(
                     file.name,
-                    cv2.VideoWriter_fourcc(*self._videoCodec),
+                    cv2.VideoWriter_fourcc(*self._video_codec),
                     self.framerate,
                     (decoded_image.shape[1], decoded_image.shape[0]),
                 )
@@ -309,10 +316,6 @@ class Writer(Output):
         path = Path(settings.path).expanduser()
         path.mkdir(parents=True, exist_ok=True)
         self._path = path.resolve()
-        self._videoCodec = settings.output_codec.name
-        self._videoSuffix = '.mp4' if self._videoCodec == 'H264' else '.avi'
-
-
         super().__init__(settings, read_from)
         logger.debug('Writer started (format: {})'.format(settings.output_format))
 
@@ -349,14 +352,14 @@ class Writer(Output):
         with open(name + '.jpg', 'wb') as f:
             f.write(image)
 
-        with open(name + '.json', 'w') as f:
+        with open(name + '.json', 'wb') as f:
             dump(meta, f)
         logger.info('Image and meta-data saved')
 
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
         name = self._unique_name(time)
 
-        with open(name + self._videoSuffix, 'wb') as f:
+        with open(name + self._video_suffix, 'wb') as f:
             f.write(video.read())
 
         with open(name + '.vtt', 'w') as f:
