@@ -45,7 +45,8 @@ The JSON file should be structured as follows (of course the values can be chang
         },
         "motion_queue": {
             "smoothing_factor": 1,
-            "max_sequence_period_s": 10.0
+            "max_sequence_period_s": 10.0,
+            "context_length_s" : 3.0"
         }
     },
     "sensor": {
@@ -108,6 +109,7 @@ class MotionQueueSettings:
 
     smoothing_factor: float = 0.5
     max_sequence_period_s: float = 10.0
+    context_length_s : float = 3.0
 
 
 @dataclass

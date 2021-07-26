@@ -124,6 +124,10 @@ settings.filter.motion_queue.max_sequence_period_s = setter(
     'Max. motion sequence period/s (ADVANCED)',
     settings.filter.motion_queue.max_sequence_period_s,
 )
+settings.filter.motion_queue.context_length_s = setter(
+    'Motion context buffer length/s',
+    settings.filter.motion_queue.context_length_s,
+)
 
 print('\nSensor settings')
 print('---------------')
