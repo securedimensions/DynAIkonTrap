@@ -69,6 +69,8 @@ class Label(Enum):
     EMPTY = 0
     ANIMAL = 1
     UNKNOWN = 2
+    CONTEXT = 3
+
 
 
 @dataclass
@@ -84,13 +86,14 @@ class LabelledFrame:
 class MotionSequence:
     """Sequence of consecutive frames with motion deemed sufficient by a previous motion filtering stage. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
 
-    def __init__(self, smoothing_len: int):
+    def __init__(self, smoothing_len: int, context_len: int):
         """
         Args:
             smoothing_len (int): Number of frames by which to smooth animal detections in either direction
         """
         self._frames: List[LabelledFrame] = []
         self.smoothing_len = smoothing_len
+        self.context_len = context_len
         self.complete = False
         self.labelled = False
         self._next_index = 0
@@ -105,6 +108,21 @@ class MotionSequence:
                 break
         else:
             self.labelled = True
+    
+    def add_context(self):
+        """Add context labels to either side of the animal predictions. This should only be called just before the motion sequence is passed out of the motion queue - ie after close_gaps() """
+        first_animal_frame_index = self.get_first_animal_index(self._frames)
+        last_animal_frame_index = self.get_last_animal_index(self._frames)
+        #add head context
+        stop = first_animal_frame_index
+        start = max(first_animal_frame_index - self.context_len, 0)
+        self._label(self._frames[start:stop], Label.CONTEXT)
+        #add tail context
+        start = last_animal_frame_index 
+        stop = min(start + self.context_len, len(self.frames))
+        self._label(self._frames[start + 1: stop], Label.CONTEXT)
+    
+
 
     def label_as_animal(self, frame: LabelledFrame):
         """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
@@ -126,7 +144,7 @@ class MotionSequence:
         self._label([frame], Label.EMPTY)
 
     def close_gaps(self):
-        """Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
+        """Remove small gaps of missing animal predictions in the current motion sequence. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
         last_animal = None
         current_gap = 0
         for i, frame in enumerate(self._frames):
@@ -166,6 +184,24 @@ class MotionSequence:
             return None
         return highest_priority_frame
 
+    def get_first_animal_index(self) -> int:
+        """Finds and returns first index in the frame queue labeled as an animal"""
+        indx: int = 0
+        for i, frame in enumerate(self._frames):
+            if frame.label is Label.ANIMAL:
+                indx = i
+                break
+        return indx
+    
+    def get_last_animal_index(self) -> int:
+        """Finds and returns last index in the frame queue labeled as an animal"""
+        indx: int = len(self._frames)
+        for i, frame in reversed(list(enumerate(self._frames))):
+            if frame.label is Label.ANIMAL:
+                indx = i
+                break
+        return indx
+
     def get_animal_frames(self) -> List[LabelledFrame]:
         """Retrieve only the animal frames from the motion sequence
 
@@ -195,8 +231,9 @@ class MotionQueue:
             framerate (int): Framerate at which the frames were recorded
         """
         self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
+        self._context_len = int((settings.context_length_s * settings.framerate))
         self._sequence_len = framerate * settings.max_sequence_period_s
-        self._current_sequence = MotionSequence(self._smoothing_len)
+        self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
         self._queue: QueueType[MotionSequence] = Queue()
         self._animal_detector = animal_detector
         self._output_queue: QueueType[Frame] = Queue()
@@ -232,7 +269,7 @@ class MotionQueue:
         current_len = len(self._current_sequence)
         if current_len > 0:
             self._queue.put(self._current_sequence)
-            self._current_sequence = MotionSequence(self._smoothing_len)
+            self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
 
             with self._remaining_frames.get_lock():
                 self._remaining_frames.value += current_len
