@@ -185,7 +185,11 @@ class MotionSequence:
         return highest_priority_frame
 
     def get_first_animal_index(self) -> int:
-        """Finds and returns first index in the frame queue labeled as an animal"""
+        """Finds and returns first index in the frame queue labeled as an animal
+        
+        Returns:
+            Index (int) of first animal frame in this motion sequence.
+        """
         indx: int = 0
         for i, frame in enumerate(self._frames):
             if frame.label is Label.ANIMAL:
@@ -194,7 +198,11 @@ class MotionSequence:
         return indx
     
     def get_last_animal_index(self) -> int:
-        """Finds and returns last index in the frame queue labeled as an animal"""
+        """Finds and returns last index in the frame queue labeled as an animal
+        
+        Returns:
+            Index (int) of last animal frame in this motion sequence.
+        """
         indx: int = len(self._frames)
         for i, frame in reversed(list(enumerate(self._frames))):
             if frame.label is Label.ANIMAL:
@@ -209,6 +217,13 @@ class MotionSequence:
             List[LabelledFrame]: List of animal frames from this motion sequence
         """
         return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))
+    def get_animal_or_context_frames(self) -> List[LabelledFrame]:
+        """Retrieve only the animal or context frames from the motion sequence
+        
+        Returns:
+            List[LabelledFrane]: List of animal or context frames from this motion sequence
+        """
+        return list(filter(lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames))
 
     def __len__(self):
         return len(self._frames)
@@ -311,6 +326,7 @@ class MotionQueue:
                 frame = sequence.get_highest_priority()
 
             sequence.close_gaps()
+            sequence.add_context()
             t_stop = time()
             t = t_stop - t_start
 
@@ -328,7 +344,7 @@ class MotionQueue:
                     len(sequence) / t,
                 )
             )
-            output = list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
+            output = list(map(lambda frame: frame.frame, sequence.get_animal_or_context_frames()))
             output += [None] if len(output) > 0 else []
             [self._output_queue.put(f) for f in output]
             self._idle.set()
