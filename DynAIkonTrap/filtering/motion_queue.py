@@ -119,7 +119,7 @@ class MotionSequence:
         self._label(self._frames[start:stop], Label.CONTEXT)
         #add tail context
         start = last_animal_frame_index 
-        stop = min(start + self.context_len, len(self.frames))
+        stop = min(start + self.context_len, len(self._frames))
         self._label(self._frames[start + 1: stop], Label.CONTEXT)
     
 
