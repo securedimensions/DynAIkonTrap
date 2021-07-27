@@ -111,8 +111,8 @@ class MotionSequence:
     
     def add_context(self):
         """Add context labels to either side of the animal predictions. This should only be called just before the motion sequence is passed out of the motion queue - ie after close_gaps() """
-        first_animal_frame_index = self.get_first_animal_index(self._frames)
-        last_animal_frame_index = self.get_last_animal_index(self._frames)
+        first_animal_frame_index = self.get_first_animal_index()
+        last_animal_frame_index = self.get_last_animal_index()
         #add head context
         stop = first_animal_frame_index
         start = max(first_animal_frame_index - self.context_len, 0)
