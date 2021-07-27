@@ -246,7 +246,7 @@ class MotionQueue:
             framerate (int): Framerate at which the frames were recorded
         """
         self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
-        self._context_len = int((settings.context_length_s * settings.framerate))
+        self._context_len = int((settings.context_length_s * framerate))
         self._sequence_len = framerate * settings.max_sequence_period_s
         self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
         self._queue: QueueType[MotionSequence] = Queue()
