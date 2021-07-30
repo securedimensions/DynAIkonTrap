@@ -230,6 +230,15 @@ class MotionSequence:
             List[LabelledFrane]: List of animal or context frames from this motion sequence
         """
         return list(filter(lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames))
+    def has_motion(self) -> bool:
+        """Check if this sequence has a frame with motion status MOTION
+        
+        Returns:
+            Bool: True if a frame in this sequence has a status indicating motion, False otherwise"""
+        for frame in self._frames:
+            if frame.motion_status is MotionStatus.MOTION:
+                return True
+        return False
 
     def __len__(self):
         return len(self._frames)
@@ -290,20 +299,22 @@ class MotionQueue:
     def end_motion_sequence(self):
         """End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter."""
         current_len = len(self._current_sequence)
-        if current_len > 0:
-            self._queue.put(self._current_sequence)
-            self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
-
-            with self._remaining_frames.get_lock():
-                self._remaining_frames.value += current_len
-
-            logger.info(
+        if current_len > 0: 
+            if self._current_sequence.has_motion():
+                self._queue.put(self._current_sequence)
+                logger.info(
                 'End of motion ({} frames will take <=~{:.0f}s; {:.0f}s cumulative)'.format(
                     current_len,
                     current_len * self._mean_time.value,
                     self._remaining_frames.value * self._mean_time.value,
                 )
             )
+            self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
+
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value += current_len
+
+            
 
     def _process_queue(self):
         while True:
