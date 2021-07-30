@@ -102,4 +102,5 @@ class Filter:
                 self._motion_queue.put(frame, motion_score, MotionStatus.MOTION)
 
             else:
-                self._motion_queue.end_motion_sequence()
+                self._motion_queue.put(frame, -1.0, MotionStatus.STILL)
+                #self._motion_queue.end_motion_sequence()
