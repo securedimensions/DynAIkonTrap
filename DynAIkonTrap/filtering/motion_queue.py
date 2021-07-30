@@ -172,6 +172,7 @@ class MotionSequence:
         Args:
             frame (Frame): Frame to be put in this motion sequence
             motion_score (float): Output value for this frame from the motion filtering stage
+            status (MotionStatus): status of motion detected in this frame
         """
         self._frames.append(
             LabelledFrame(frame=frame, index=self._next_index, priority=motion_score, motion_status=status)
@@ -278,6 +279,8 @@ class MotionQueue:
         Args:
             frame (Frame): A frame of motion and image data to be analysed
             motion_score (float): Output value for this frame from the motion filtering stage
+            status (MotionStatus): status of motion detected in this frame
+
         """
         self._idle.clear()
         self._current_sequence.put(frame, motion_score, motion_status)
