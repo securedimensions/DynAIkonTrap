@@ -23,6 +23,7 @@ The output is accessible via a queue, which mitigates problems due to the bursti
 from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from queue import Empty
+from enum import Enum
 
 from DynAIkonTrap.camera import Frame, Camera
 from DynAIkonTrap.filtering.animal import AnimalFilter
@@ -33,6 +34,12 @@ from DynAIkonTrap.settings import FilterSettings
 
 logger = get_logger(__name__)
 
+class MotionStatus(Enum):
+    """Categories for the motion status of a frame"""
+
+    STILL = 0
+    MOTION = 1
+    UNKNOWN = 2
 
 class Filter:
     """Wrapper for the complete image filtering pipeline"""
@@ -92,7 +99,7 @@ class Filter:
             motion_detected = motion_score >= self._motion_threshold
 
             if motion_detected:
-                self._motion_queue.put(frame, motion_score)
+                self._motion_queue.put(frame, motion_score, MotionStatus.MOTION)
 
             else:
                 self._motion_queue.end_motion_sequence()
