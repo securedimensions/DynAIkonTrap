@@ -59,7 +59,6 @@ from DynAIkonTrap.camera import Frame
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import MotionQueueSettings
 from DynAIkonTrap.filtering.animal import AnimalFilter
-from DynAIkonTrap.filtering.filtering import MotionStatus
 
 logger = get_logger(__name__)
 
