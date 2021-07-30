@@ -336,10 +336,11 @@ class MotionQueue:
             t = t_stop - t_start
 
             # Update average inferencing time
-            with self._mean_time.get_lock():
-                self._mean_time.value = (
-                    self._mean_time.value + t_actual_framerate / inference_count
-                ) / 2
+            if inference_count:
+                with self._mean_time.get_lock():
+                    self._mean_time.value = (
+                        self._mean_time.value + t_actual_framerate / inference_count
+                    ) / 2
 
             logger.info(
                 'It took {:.1f}s to process {} frames ({} animal) => ~{:.2f}FPS'.format(
