@@ -272,7 +272,7 @@ class MotionQueue:
         self._process = Process(target=self._process_queue, daemon=True)
         self._process.start()
 
-    def put(self, frame: Frame, motion_score: float):
+    def put(self, frame: Frame, motion_score: float, motion_status: MotionStatus):
         """Append the given frame to the current motion sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
 
         Args:
@@ -280,7 +280,7 @@ class MotionQueue:
             motion_score (float): Output value for this frame from the motion filtering stage
         """
         self._idle.clear()
-        self._current_sequence.put(frame, motion_score)
+        self._current_sequence.put(frame, motion_score, motion_status)
         if len(self._current_sequence) >= self._sequence_len:
             self.end_motion_sequence()
 
