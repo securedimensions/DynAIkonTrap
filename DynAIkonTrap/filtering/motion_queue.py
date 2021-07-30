@@ -64,6 +64,13 @@ from DynAIkonTrap.filtering.filtering import MotionStatus
 logger = get_logger(__name__)
 
 
+class MotionStatus(Enum):
+    """Categories for the motion status of a frame"""
+
+    STILL = 0
+    MOTION = 1
+    UNKNOWN = 2
+
 class Label(Enum):
     """Categories into which a frame can fall"""
 

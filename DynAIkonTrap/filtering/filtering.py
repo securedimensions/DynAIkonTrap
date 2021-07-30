@@ -29,17 +29,12 @@ from DynAIkonTrap.camera import Frame, Camera
 from DynAIkonTrap.filtering.animal import AnimalFilter
 from DynAIkonTrap.filtering.motion import MotionFilter
 from DynAIkonTrap.filtering.motion_queue import MotionQueue
+from DynAIkonTrap.filtering.motion_queue import MotionStatus
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import FilterSettings
 
 logger = get_logger(__name__)
 
-class MotionStatus(Enum):
-    """Categories for the motion status of a frame"""
-
-    STILL = 0
-    MOTION = 1
-    UNKNOWN = 2
 
 class Filter:
     """Wrapper for the complete image filtering pipeline"""
