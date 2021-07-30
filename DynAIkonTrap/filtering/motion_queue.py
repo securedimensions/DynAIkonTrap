@@ -59,6 +59,7 @@ from DynAIkonTrap.camera import Frame
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import MotionQueueSettings
 from DynAIkonTrap.filtering.animal import AnimalFilter
+from DynAIkonTrap.filtering.filtering import MotionStatus
 
 logger = get_logger(__name__)
 
@@ -71,8 +72,6 @@ class Label(Enum):
     UNKNOWN = 2
     CONTEXT = 3
 
-
-
 @dataclass
 class LabelledFrame:
     """A frame of motion and image data accompanied by some additional labels for the motion queue"""
@@ -81,7 +80,7 @@ class LabelledFrame:
     index: int
     priority: float  # Higher means more likely to be animal
     label: Label = Label.UNKNOWN
-
+    motion_status: MotionStatus = MotionStatus.UNKNOWN
 
 class MotionSequence:
     """Sequence of consecutive frames with motion deemed sufficient by a previous motion filtering stage. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
@@ -161,7 +160,7 @@ class MotionSequence:
                 if last_animal is not None:
                     current_gap += 1
 
-    def put(self, frame: Frame, motion_score: float):
+    def put(self, frame: Frame, motion_score: float, status: MotionStatus):
         """Append the frame to this motion sequence
 
         Args:
@@ -169,7 +168,7 @@ class MotionSequence:
             motion_score (float): Output value for this frame from the motion filtering stage
         """
         self._frames.append(
-            LabelledFrame(frame=frame, index=self._next_index, priority=motion_score)
+            LabelledFrame(frame=frame, index=self._next_index, priority=motion_score, motion_status=status)
         )
         self._next_index += 1
 
