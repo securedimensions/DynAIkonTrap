@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-This module provides access to a "motion queue", which is simply a queue for sequences of consecutive motion. The intended usage is to place frames of motion, as determined by a motion filter, into the queue. When a frame of no motion arrives, this is not added to the queue and the motion sequence is ended.
+This module provides access to a "motion queue", which is simply a queue for labelled consecutive sequences. The intended usage is to place frames of interest, labeled as determined by a motion filter, into the queue. The queue is ended when the maximum length is reached as determined by MotionQueueSettings.
 
-The sequence is then analysed by the animal filter, loaded into the `MotionQueue`, and a callback called with only the animal frames from the motion sequence. Within a `MotionSequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
+The sequence is then analysed by the animal filter, loaded into the `MotionLabelledQueue`, and a callback called with only the animal frames from the motion sequence. Within a `MotionSequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
 
 Below is a simple outline example of how this can be used to print all animal frames:
 ```python
@@ -24,7 +24,7 @@ camera = Camera()
 
 mf = MotionFilter(...)
 
-mq = MotionQueue(
+mq = MotionLabelledQueue(
     AnimalFilter(...), 
     print, 
     MotionQueueSettings(), 
@@ -37,12 +37,12 @@ while True:
 
     motion_score = mf.run_raw(frame.motion)
     motion_detected = motion_score >= motion_threshold
+    
 
     if motion_detected:
-        mq.put(frame, motion_score)
+        mq.put(frame, motion_score, MotionStatus.MOTION)
     else:
-        # Safe to call repeatedly; will only end non-empty motion sequence
-        mq.end_motion_sequence()
+        mq.put(frame, -1.0, MotionStatus.STILL)
 ```
 
 The modularity here means Different implementations for animal filtering and motion filtering stages can be used.
@@ -88,7 +88,7 @@ class LabelledFrame:
     label: Label = Label.UNKNOWN
     motion_status: MotionStatus = MotionStatus.UNKNOWN
 
-class MotionSequence:
+class Sequence:
     """Sequence of consecutive labelled frames. Frames may be "still" or contain motion. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
 
     def __init__(self, smoothing_len: int, context_len: int):
@@ -115,7 +115,7 @@ class MotionSequence:
             self.labelled = True
     
     def add_context(self):
-        """Add context labels to either side of the animal predictions. This should only be called just before the motion sequence is passed out of the motion queue - ie after close_gaps() """
+        """Add context labels to either side of the animal predictions. This should only be called just before the sequence is passed out of the motion labelled queue - ie after close_gaps() """
         first_animal_frame_index = self.get_first_animal_index()
         last_animal_frame_index = self.get_last_animal_index()
         #add head context
@@ -130,7 +130,7 @@ class MotionSequence:
 
 
     def label_as_animal(self, frame: LabelledFrame):
-        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
+        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current sequence will also be labelled as animal according to the `smoothing_len`
 
         Args:
             frame (LabelledFrame): The frame to be labelled as containing an animal
@@ -149,7 +149,7 @@ class MotionSequence:
         self._label([frame], Label.EMPTY)
 
     def close_gaps(self):
-        """Remove small gaps of missing animal predictions in the current motion sequence. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
+        """Remove small gaps of missing animal predictions in the current sequence. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
         last_animal = None
         current_gap = 0
         for i, frame in enumerate(self._frames):
@@ -167,10 +167,10 @@ class MotionSequence:
                     current_gap += 1
 
     def put(self, frame: Frame, motion_score: float, status: MotionStatus):
-        """Append the frame to this motion sequence
+        """Append the frame to this sequence
 
         Args:
-            frame (Frame): Frame to be put in this motion sequence
+            frame (Frame): Frame to be put in this sequence
             motion_score (float): Output value for this frame from the motion filtering stage
             status (MotionStatus): status of motion detected in this frame
         """
@@ -180,7 +180,7 @@ class MotionSequence:
         self._next_index += 1
 
     def get_highest_priority(self) -> LabelledFrame:
-        """Finds the frame with the highest priority in the motion sequence. This should be the next frame to be passed to the animal filtering stage.
+        """Finds the frame with the highest priority in the sequence. This should be the next frame to be passed to the animal filtering stage.
 
         Returns:
             LabelledFrame: Frame to be analysed by the animal filtering stage
@@ -194,7 +194,7 @@ class MotionSequence:
         """Finds and returns first index in the frame queue labeled as an animal
         
         Returns:
-            Index (int) of first animal frame in this motion sequence.
+            Index (int) of first animal frame in this sequence.
         """
         indx: int = 0
         for i, frame in enumerate(self._frames):
@@ -207,7 +207,7 @@ class MotionSequence:
         """Finds and returns last index in the frame queue labeled as an animal
         
         Returns:
-            Index (int) of last animal frame in this motion sequence.
+            Index (int) of last animal frame in this sequence.
         """
         indx: int = len(self._frames)
         for i, frame in reversed(list(enumerate(self._frames))):
@@ -217,19 +217,21 @@ class MotionSequence:
         return indx
 
     def get_animal_frames(self) -> List[LabelledFrame]:
-        """Retrieve only the animal frames from the motion sequence
+        """Retrieve only the animal frames from the sequence
 
         Returns:
-            List[LabelledFrame]: List of animal frames from this motion sequence
+            List[LabelledFrame]: List of animal frames from this sequence
         """
         return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))
+        
     def get_animal_or_context_frames(self) -> List[LabelledFrame]:
-        """Retrieve only the animal or context frames from the motion sequence
+        """Retrieve only the animal or context frames from the sequence
         
         Returns:
-            List[LabelledFrane]: List of animal or context frames from this motion sequence
+            List[LabelledFrane]: List of animal or context frames from this sequence
         """
         return list(filter(lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames))
+    
     def has_motion(self) -> bool:
         """Check if this sequence has a frame with motion status MOTION
         
@@ -244,7 +246,7 @@ class MotionSequence:
         return len(self._frames)
 
 
-class MotionQueue:
+class MotionLabelledQueue:
     """A queue for sequences of motion to be analysed by the animal filter"""
 
     def __init__(
@@ -263,8 +265,8 @@ class MotionQueue:
         self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
         self._context_len = int((settings.context_length_s * framerate))
         self._sequence_len = framerate * settings.max_sequence_period_s
-        self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
-        self._queue: QueueType[MotionSequence] = Queue()
+        self._current_sequence = Sequence(self._smoothing_len, self._context_len)
+        self._queue: QueueType[Sequence] = Queue()
         self._animal_detector = animal_detector
         self._output_queue: QueueType[Frame] = Queue()
 
@@ -283,7 +285,7 @@ class MotionQueue:
         self._process.start()
 
     def put(self, frame: Frame, motion_score: float, motion_status: MotionStatus):
-        """Append the given frame to the current motion sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
+        """Append the given frame to the current sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
 
         Args:
             frame (Frame): A frame of motion and image data to be analysed
@@ -309,7 +311,7 @@ class MotionQueue:
                     self._remaining_frames.value * self._mean_time.value,
                 )
             )
-            self._current_sequence = MotionSequence(self._smoothing_len, self._context_len)
+            self._current_sequence = Sequence(self._smoothing_len, self._context_len)
 
             with self._remaining_frames.get_lock():
                 self._remaining_frames.value += current_len

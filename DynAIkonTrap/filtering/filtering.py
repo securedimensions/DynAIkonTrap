@@ -16,7 +16,7 @@
 """
 A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the `Filter` reads from a `DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals.
 
-Internally frames are first analysed by the `DynAIkonTrap.filtering.motion.MotionFilter` and then, if sufficient motion is detected, placed on the `DynAIkonTrap.filtering.motion_queue.MotionQueue`. Within the queue the `DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+Internally frames are first analysed by the `DynAIkonTrap.filtering.motion.MotionFilter` frames, with motion score and label indicating motion, are added to a `DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the `DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
 
 The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
 """
@@ -28,7 +28,7 @@ from enum import Enum
 from DynAIkonTrap.camera import Frame, Camera
 from DynAIkonTrap.filtering.animal import AnimalFilter
 from DynAIkonTrap.filtering.motion import MotionFilter
-from DynAIkonTrap.filtering.motion_queue import MotionQueue
+from DynAIkonTrap.filtering.motion_queue import MotionLabelledQueue
 from DynAIkonTrap.filtering.motion_queue import MotionStatus
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import FilterSettings
@@ -56,7 +56,7 @@ class Filter:
         self._motion_threshold = settings.motion.sotv_threshold
 
         self._animal_filter = AnimalFilter(settings=settings.animal)
-        self._motion_queue = MotionQueue(
+        self._motion_labelled_queue = MotionLabelledQueue(
             animal_detector=self._animal_filter,
             settings=settings.motion_queue,
             framerate=self.framerate,
@@ -72,7 +72,7 @@ class Filter:
         Returns:
             Frame: An animal frame
         """
-        return self._motion_queue.get()
+        return self._motion_labelled_queue.get()
 
     def close(self):
         self._usher.terminate()
@@ -85,7 +85,7 @@ class Filter:
                 frame = self._input_queue.get()
             except Empty:
                 # An unexpected event; finish processing motion so far
-                self._motion_queue.end_motion_sequence()
+                self._motion_labelled_queue.end_motion_sequence()
                 self._motion_filter.reset()
                 continue
 
@@ -94,7 +94,7 @@ class Filter:
             motion_detected = motion_score >= self._motion_threshold
 
             if motion_detected:
-                self._motion_queue.put(frame, motion_score, MotionStatus.MOTION)
+                self._motion_labelled_queue.put(frame, motion_score, MotionStatus.MOTION)
 
             else:
-                self._motion_queue.put(frame, -1.0, MotionStatus.STILL)
+                self._motion_labelled_queue.put(frame, -1.0, MotionStatus.STILL)
