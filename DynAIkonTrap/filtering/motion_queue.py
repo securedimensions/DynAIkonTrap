@@ -89,7 +89,7 @@ class LabelledFrame:
     motion_status: MotionStatus = MotionStatus.UNKNOWN
 
 class MotionSequence:
-    """Sequence of consecutive frames with motion deemed sufficient by a previous motion filtering stage. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
+    """Sequence of consecutive labelled frames. Frames may be "still" or contain motion. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
 
     def __init__(self, smoothing_len: int, context_len: int):
         """
@@ -186,7 +186,7 @@ class MotionSequence:
             LabelledFrame: Frame to be analysed by the animal filtering stage
         """
         highest_priority_frame = max(self._frames, key=lambda frame: frame.priority)
-        if highest_priority_frame.priority < 0:
+        if highest_priority_frame.motion_status is MotionStatus.STILL:
             return None
         return highest_priority_frame
 
@@ -297,7 +297,7 @@ class MotionQueue:
             self.end_motion_sequence()
 
     def end_motion_sequence(self):
-        """End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter."""
+        """End the current sequence and prepare the next one. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the sequence to be processed by the animal filter."""
         current_len = len(self._current_sequence)
         if current_len > 0: 
             if self._current_sequence.has_motion():
