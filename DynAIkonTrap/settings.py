@@ -52,6 +52,7 @@ The JSON file should be structured as follows (of course the values can be chang
         "port": "/dev/ttyUSB0",
         "baud": 57600,
         "interval_s": 30.0
+        "obfuscation_distance_km": 2
     },
     "sender": {
         "server": "http://10.42.0.1:8080/trap/",
@@ -61,7 +62,8 @@ The JSON file should be structured as follows (of course the values can be chang
     },
     "logging": {
         "level": "INFO"
-    }
+    },
+    "version": "1.0.0"
 }
 ```
 
@@ -112,11 +114,15 @@ class MotionQueueSettings:
 
 @dataclass
 class SensorSettings:
-    """Settings for a `DynAIkonTrap.sensor.SensorLogs`"""
+    """Settings for a `DynAIkonTrap.sensor.SensorLogs`
+
+    The `obfuscation_distance` should be kept to the range [0..`EARTH_CIRCUMFERENCE_KM/8`), otherwise it will internally be capped to this range. Note that setting to less than 1mm will be rounded down to zero.
+    """
 
     port: str = '/dev/ttyUSB0'
     baud: int = 57600
     interval_s: float = 30.0
+    obfuscation_distance_km: float = 2
 
 
 class OutputFormat(Enum):
@@ -183,6 +189,12 @@ class Settings:
     logging: LoggerSettings = LoggerSettings()
 
 
+def _version_number() -> str:
+    with open('VERSION', 'r') as f:
+        version = f.readline().strip()
+    return version
+
+
 def load_settings() -> Settings:
     """Call this function once to load the settings from `settings.json` file. If the file is not present some defaults are loaded.
 
@@ -202,6 +214,17 @@ def load_settings() -> Settings:
                 return Settings()
 
             try:
+                json_version = settings_json.get('version', '0')
+                system_version = _version_number()
+
+                if json_version != system_version:
+                    logger.warning(
+                        'Running DynAIkonTrap v{}, but settings are for v{}, using defaults'.format(
+                            system_version, json_version
+                        )
+                    )
+                    return Settings()
+
                 output_mode = OutputMode(settings_json['output']['output_mode'])
                 if output_mode == OutputMode.SEND:
                     output = SenderSettings(

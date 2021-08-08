@@ -14,33 +14,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-An interface for sending animal frames to a server. The `Sender` combines a frame with the most appropriate sensor log and sends these together via a HTTP POST request to the specified server.
-
-The current server API is:\n
-- Path: <server>/trap/capture\n
-- Type: POST\n
-- Files: The image frame encoded as JPEG\n
-- Data: meta-data for the image reporesented in the following JSON:
-```json
-meta = {
-            'trap_id': self._device_id,
-            'time': time,
-            'temperature': temp,
-            'pressure': press,
-            'brightness': light,
-            'humidity': humidity,
-        }
-```
+An interface for writing animal frames to disk or sending them to a server. The `AbstractOutput` combines a frame(s) with the most appropriate sensor log(s) and outputs these.
 """
 from multiprocessing import Process
-from typing import Dict, IO, Tuple, List
+from typing import Dict, IO, Tuple, List, Union
 from tempfile import NamedTemporaryFile
 from io import StringIO
 from datetime import datetime, timezone
 from pathlib import Path
 from os import listdir
 from os.path import join
-from json import dump
+from json import dump, dumps
 
 from requests import post
 from requests.exceptions import HTTPError, ConnectionError
@@ -48,9 +32,10 @@ from numpy import asarray
 import cv2  # pdoc3 can't handle importing individual OpenCV functions
 
 from DynAIkonTrap.filtering import Filter
-from DynAIkonTrap.sensor import SensorLogs, Reading
+from DynAIkonTrap.sensor import SensorLog, SensorLogs, Reading
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import (
+    OutputMode,
     SenderSettings,
     OutputFormat,
     OutputSettings,
@@ -114,7 +99,7 @@ class VideoCaption:
         vtt += '\n'
 
         for key, caption in sorted(captions.items()):
-            log = caption['log']
+            log: SensorLog = caption['log']
             if log is None:
                 continue
 
@@ -125,15 +110,15 @@ class VideoCaption:
                 self._video_time_to_str(start_time),
                 self._video_time_to_str(stop_time),
                 '{:%H:%M:%S}'.format(
-                    datetime.fromtimestamp(log.timestamp, timezone.utc)
+                    datetime.fromtimestamp(log.system_time, timezone.utc)
                 ),
             )
 
             vtt += 'T: {} - RH: {} - L: {} - P: {}\n\n'.format(
-                self._reading_to_str(log.temperature),
-                self._reading_to_str(log.humidity),
-                self._reading_to_str(log.brightness),
-                self._reading_to_str(log.pressure),
+                self._reading_to_str(log.readings.get('SKEW_TEMPERATURE')),
+                self._reading_to_str(log.readings.get('HUMIDITY')),
+                self._reading_to_str(log.readings.get('BRIGHTNESS')),
+                self._reading_to_str(log.readings.get('ATMOSPHERIC_PRESSURE')),
             )
         return vtt
 
@@ -149,8 +134,57 @@ class VideoCaption:
         captions = self._generate_captions_dict(timestamps)
         return StringIO(self._captions_dict_to_vtt(captions, self._framerate))
 
+    def generate_sensor_json(self, timestamps: List[float]) -> StringIO:
+        """Generate JSON captions containing the sensor readings at given moments in time.
 
-class Output:
+        The format is as follows:
+
+        ```json
+        [
+            {
+                "start": 0,
+                "end": 1,
+                "log": {
+                    "EXAMPLE_SENSOR_1": {
+                        "value": 0.0,
+                        "units": "x"
+                    },
+                    "EXAMPLE_SENSOR_2": {
+                        "value": 0.0,
+                        "units": "x"
+                    }
+                }
+            },
+            {
+                "start": 1,
+                "end": 5,
+                "logs": {}
+            }
+        ]
+        ```
+
+        The `"start"` and `"end"` correspond to the frame numbers in which the sensor logs are valid. The frame numbers are inclusive. It is not guaranteed that all frames are covered by logs. There may also be also be overlaps between entries if the exact timestamp where a new set of sensor readings becomes valid occurs during a frame.
+
+        Args:
+            timestamps (List[float]): Timestamps for every frame in the motion/animal sequence
+
+        Returns:
+            StringIO: The JSON captions wrapped in a `StringIO`, ready for writing to file
+        """
+        captions = self._generate_captions_dict(timestamps)
+        logger.debug(captions)
+
+        json_captions = []
+        for c in captions.values():
+            log = c['log']
+            if log != None:
+                json_captions.append(
+                    {'start': c['start'], 'end': c['stop'], 'log': log.serialise()}
+                )
+        return StringIO(dumps(json_captions))
+
+
+class AbstractOutput:
     """A base class to use for outputting captured images or videos. The `output_still()` and `output_video()` functions should be overridden with output method-specific implementations."""
 
     def __init__(self, settings: OutputSettings, read_from: Tuple[Filter, SensorLogs]):
@@ -180,11 +214,7 @@ class Output:
                 self.output_still(image=frame.image, time=frame.timestamp)
             else:
                 self.output_still(
-                    image=frame.image,
-                    time=frame.timestamp,
-                    brightness=log.brightness,
-                    humidity=log.humidity,
-                    pressure=log.pressure,
+                    image=frame.image, time=frame.timestamp, sensor_log=log
                 )
 
     def _read_frames_to_video(self):
@@ -198,7 +228,7 @@ class Output:
             if frame is None and not start_new:
                 start_new = True
                 writer.release()
-                captions = caption_generator.generate_vtt_for(frame_timestamps)
+                captions = caption_generator.generate_sensor_json(frame_timestamps)
                 self.output_video(video=file, caption=captions, time=start_time)
                 file.close()
                 continue
@@ -222,17 +252,13 @@ class Output:
             writer.write(decoded_image)
             frame_timestamps.append(frame.timestamp)
 
-    def output_still(self, image: bytes, time: float, **kwargs):
+    def output_still(self, image: bytes, time: float, sensor_log: SensorLog):
         """Output a still image with its sensor data. The sensor data can be provided via the keyword arguments.
 
         Args:
             image (bytes): The JPEG image frame
             time (float): UNIX timestamp when the image was captured
-            **humidity (float): Humidity at or close to capture time
-            **brightness (float): Brightness at or close to capture time
-            **pressure (float): Pressure at or close to capture time
-            **temperature (float): Temperature at or close to capture time
-            **trap_id: ID of the camera trap
+            sensor_log (SensorLog): Log of sensor values at time frame was captured
 
         Raises:
             NotImplementedError: A subclass should implement this function for the specific use-case e.g. writing to disk.
@@ -244,7 +270,7 @@ class Output:
 
         Args:
             video (IO[bytes]): MP4 video (codec: H264 - MPEG-4 AVC (part 10))
-            caption (StringIO): WebVTT caption of sensor readings
+            caption (StringIO): Caption of sensor readings as produced by `VideoCaption.generate_sensor_json()`
             time (float): UNIX timestamp when the image was captured
 
         Raises:
@@ -253,7 +279,7 @@ class Output:
         raise NotImplementedError()
 
 
-class Sender(Output):
+class Sender(AbstractOutput):
     """The Sender is a simple interface for sending the desired data to a server"""
 
     def __init__(self, settings: SenderSettings, read_from: Tuple[Filter, SensorLogs]):
@@ -264,19 +290,12 @@ class Sender(Output):
 
         logger.debug('Sender started (format: {})'.format(settings.output_format))
 
-    def output_still(self, image: bytes, time: float, **kwargs):
-        meta = {
-            'trap_id': kwargs.get('trap_id'),
-            'time': time,
-            'temperature': kwargs.get('temperature'),
-            'pressure': kwargs.get('pressure'),
-            'brightness': kwargs.get('brightness'),
-            'humidity': kwargs.get('humidity'),
-        }
+    def output_still(self, image: bytes, time: float, sensor_log: SensorLog):
+
         files_dict = {'file': ('image', image, 'image/jpeg')}
-        logger.debug('Sending capture, meta = {}'.format(meta))
+        logger.debug('Sending capture, meta = {}'.format(sensor_log))
         try:
-            r = post(self._server + self._path_POST, data=meta, files=files_dict)
+            r = post(self._server + self._path_POST, data=sensor_log, files=files_dict)
             r.raise_for_status()
             logger.info('Image sent')
         except HTTPError as e:
@@ -300,7 +319,7 @@ class Sender(Output):
             logger.error('Connection to server failed; could not send data')
 
 
-class Writer(Output):
+class Writer(AbstractOutput):
     def __init__(self, settings: WriterSettings, read_from: Tuple[Filter, SensorLogs]):
 
         path = Path(settings.path).expanduser()
@@ -329,22 +348,15 @@ class Writer(Output):
 
         return join(self._path, name)
 
-    def output_still(self, image: bytes, time: float, **kwargs):
-        meta = {
-            'trap_id': kwargs.get('trap_id'),
-            'time': time,
-            'temperature': kwargs.get('temperature'),
-            'pressure': kwargs.get('pressure'),
-            'brightness': kwargs.get('brightness'),
-            'humidity': kwargs.get('humidity'),
-        }
+    def output_still(self, image: bytes, time: float, sensor_log: SensorLog):
+
         name = self._unique_name(time)
 
         with open(name + '.jpg', 'wb') as f:
             f.write(image)
 
         with open(name + '.json', 'w') as f:
-            dump(meta, f)
+            dump(sensor_log.serialise(), f)
         logger.info('Image and meta-data saved')
 
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
@@ -353,7 +365,17 @@ class Writer(Output):
         with open(name + '.mp4', 'wb') as f:
             f.write(video.read())
 
-        with open(name + '.vtt', 'w') as f:
+        with open(name + '.json', 'w') as f:
             f.write(caption.getvalue())
 
         logger.info('Video and caption saved')
+
+
+def Output(
+    settings: OutputSettings, read_from: Tuple[Filter, SensorLogs]
+) -> Union[Sender, Writer]:
+    """Generator function to provide an implementation of the `AbstractOutput` based on the `DynAIkonTrap.settings.OutputMode` of the `settings` argument."""
+    if settings.output_mode == OutputMode.SEND:
+        Sender(settings=settings, read_from=read_from)
+    else:
+        Writer(settings=settings, read_from=read_from)

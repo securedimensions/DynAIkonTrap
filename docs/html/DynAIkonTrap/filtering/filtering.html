@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>DynAIkonTrap.filtering.filtering API documentation</title>
 <meta name="description" content="A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -25,6 +25,109 @@
 <p>A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the <code><a title="DynAIkonTrap.filtering.filtering.Filter" href="#DynAIkonTrap.filtering.filtering.Filter">Filter</a></code> reads from a <code><a title="DynAIkonTrap.camera.Camera" href="../camera.html#DynAIkonTrap.camera.Camera">Camera</a></code>'s output and in turn outputs only frames containing animals.</p>
 <p>Internally frames are first analysed by the <code><a title="DynAIkonTrap.filtering.motion.MotionFilter" href="motion.html#DynAIkonTrap.filtering.motion.MotionFilter">MotionFilter</a></code> and then, if sufficient motion is detected, placed on the <code><a title="DynAIkonTrap.filtering.motion_queue.MotionQueue" href="motion_queue.html#DynAIkonTrap.filtering.motion_queue.MotionQueue">MotionQueue</a></code>. Within the queue the <code><a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="animal.html#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a></code> stage is applied with only the animal frames being returned as the output of this pipeline.</p>
 <p>The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+&#34;&#34;&#34;
+A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the `Filter` reads from a `DynAIkonTrap.camera.Camera`&#39;s output and in turn outputs only frames containing animals.
+
+Internally frames are first analysed by the `DynAIkonTrap.filtering.motion.MotionFilter` and then, if sufficient motion is detected, placed on the `DynAIkonTrap.filtering.motion_queue.MotionQueue`. Within the queue the `DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+
+The output is accessible via a queue, which mitigates problems due to the burstiness of this stage&#39;s output and also allows the pipeline to be run in a separate process.
+&#34;&#34;&#34;
+from multiprocessing import Process, Queue
+from multiprocessing.queues import Queue as QueueType
+from queue import Empty
+
+from DynAIkonTrap.camera import Frame, Camera
+from DynAIkonTrap.filtering.animal import AnimalFilter
+from DynAIkonTrap.filtering.motion import MotionFilter
+from DynAIkonTrap.filtering.motion_queue import MotionQueue
+from DynAIkonTrap.logging import get_logger
+from DynAIkonTrap.settings import FilterSettings
+
+logger = get_logger(__name__)
+
+
+class Filter:
+    &#34;&#34;&#34;Wrapper for the complete image filtering pipeline&#34;&#34;&#34;
+
+    def __init__(self, read_from: Camera, settings: FilterSettings):
+        &#34;&#34;&#34;
+        Args:
+            read_from (Camera): Read frames from this camera
+            settings (FilterSettings): Settings for the filter pipeline
+        &#34;&#34;&#34;
+        self.framerate = read_from.framerate
+
+        self._input_queue = read_from
+        self._output_queue: QueueType[Frame] = Queue()
+
+        self._motion_filter = MotionFilter(
+            settings=settings.motion, framerate=self.framerate
+        )
+        self._motion_threshold = settings.motion.sotv_threshold
+
+        self._animal_filter = AnimalFilter(settings=settings.animal)
+        self._motion_queue = MotionQueue(
+            animal_detector=self._animal_filter,
+            settings=settings.motion_queue,
+            framerate=self.framerate,
+        )
+
+        self._usher = Process(target=self._handle_input, daemon=True)
+        self._usher.start()
+        logger.debug(&#39;Filter started&#39;)
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next animal `Frame` from the filter pipeline&#39;s output
+
+        Returns:
+            Frame: An animal frame
+        &#34;&#34;&#34;
+        return self._motion_queue.get()
+
+    def close(self):
+        self._usher.terminate()
+        self._usher.join()
+
+    def _handle_input(self):
+        while True:
+
+            try:
+                frame = self._input_queue.get()
+            except Empty:
+                # An unexpected event; finish processing motion so far
+                self._motion_queue.end_motion_sequence()
+                self._motion_filter.reset()
+                continue
+
+
+            motion_score = self._motion_filter.run_raw(frame.motion)
+            motion_detected = motion_score &gt;= self._motion_threshold
+
+            if motion_detected:
+                self._motion_queue.put(frame, motion_score)
+
+            else:
+                self._motion_queue.end_motion_sequence()</code></pre>
+</details>
 </section>
 <section>
 </section>
@@ -48,6 +151,73 @@
 <dt><strong><code>settings</code></strong> :&ensp;<code>FilterSettings</code></dt>
 <dd>Settings for the filter pipeline</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Filter:
+    &#34;&#34;&#34;Wrapper for the complete image filtering pipeline&#34;&#34;&#34;
+
+    def __init__(self, read_from: Camera, settings: FilterSettings):
+        &#34;&#34;&#34;
+        Args:
+            read_from (Camera): Read frames from this camera
+            settings (FilterSettings): Settings for the filter pipeline
+        &#34;&#34;&#34;
+        self.framerate = read_from.framerate
+
+        self._input_queue = read_from
+        self._output_queue: QueueType[Frame] = Queue()
+
+        self._motion_filter = MotionFilter(
+            settings=settings.motion, framerate=self.framerate
+        )
+        self._motion_threshold = settings.motion.sotv_threshold
+
+        self._animal_filter = AnimalFilter(settings=settings.animal)
+        self._motion_queue = MotionQueue(
+            animal_detector=self._animal_filter,
+            settings=settings.motion_queue,
+            framerate=self.framerate,
+        )
+
+        self._usher = Process(target=self._handle_input, daemon=True)
+        self._usher.start()
+        logger.debug(&#39;Filter started&#39;)
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next animal `Frame` from the filter pipeline&#39;s output
+
+        Returns:
+            Frame: An animal frame
+        &#34;&#34;&#34;
+        return self._motion_queue.get()
+
+    def close(self):
+        self._usher.terminate()
+        self._usher.join()
+
+    def _handle_input(self):
+        while True:
+
+            try:
+                frame = self._input_queue.get()
+            except Empty:
+                # An unexpected event; finish processing motion so far
+                self._motion_queue.end_motion_sequence()
+                self._motion_filter.reset()
+                continue
+
+
+            motion_score = self._motion_filter.run_raw(frame.motion)
+            motion_detected = motion_score &gt;= self._motion_threshold
+
+            if motion_detected:
+                self._motion_queue.put(frame, motion_score)
+
+            else:
+                self._motion_queue.end_motion_sequence()</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.filtering.Filter.close"><code class="name flex">
@@ -55,6 +225,14 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def close(self):
+    self._usher.terminate()
+    self._usher.join()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.filtering.Filter.get"><code class="name flex">
 <span>def <span class="ident">get</span></span>(<span>self) ‑> <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a></span>
@@ -66,6 +244,18 @@
 <dt><code>Frame</code></dt>
 <dd>An animal frame</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get(self) -&gt; Frame:
+    &#34;&#34;&#34;Retrieve the next animal `Frame` from the filter pipeline&#39;s output
+
+    Returns:
+        Frame: An animal frame
+    &#34;&#34;&#34;
+    return self._motion_queue.get()</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -98,7 +288,7 @@
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>

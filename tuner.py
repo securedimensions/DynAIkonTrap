@@ -38,8 +38,13 @@ def forced_setter(name, setting, value):
     print('{} [{}]> calculated for you'.format(name, setting))
     return setting
 
+def _version_number() -> str:
+    with open('VERSION', 'r') as f:
+        version = f.readline().strip()
+    return version
 
 settings = Settings()
+settings.version = _version_number()
 
 print(
     """
@@ -132,6 +137,9 @@ settings.sensor.baud = setter('Sensor board baud rate', settings.sensor.baud)
 settings.sensor.interval_s = setter(
     'Sensor reading interval/s', settings.sensor.interval_s
 )
+settings.sensor.obfuscation_distance_km = setter(
+    'GPS obfuscation distance/km', settings.sensor.obfuscation_distance_km
+)
 
 print('\nOutput settings')
 print('---------------')
@@ -174,6 +182,9 @@ def serialise(obj):
 
     elif isinstance(obj, MappingProxyType):
         return {k: v for k, v in obj.items() if not k.startswith('__')}
+
+    elif isinstance(obj, str):
+        return obj
 
     return obj.__dict__
 
