@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>DynAIkonTrap.filtering.motion_queue API documentation</title>
 <meta name="description" content="This module provides access to a &#34;motion queue&#34;, which is simply a queue for sequences of consecutive motion. The intended usage is to place frames of …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -50,6 +50,328 @@ while True:
         mq.end_motion_sequence()
 </code></pre>
 <p>The modularity here means Different implementations for animal filtering and motion filtering stages can be used.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+&#34;&#34;&#34;
+This module provides access to a &#34;motion queue&#34;, which is simply a queue for sequences of consecutive motion. The intended usage is to place frames of motion, as determined by a motion filter, into the queue. When a frame of no motion arrives, this is not added to the queue and the motion sequence is ended.
+
+The sequence is then analysed by the animal filter, loaded into the `MotionQueue`, and a callback called with only the animal frames from the motion sequence. Within a `MotionSequence` there is some simplistic &#34;smoothing&#34; of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
+
+Below is a simple outline example of how this can be used to print all animal frames:
+```python
+camera = Camera()
+
+mf = MotionFilter(...)
+
+mq = MotionQueue(
+    AnimalFilter(...), 
+    print, 
+    MotionQueueSettings(), 
+    camera.framerate,
+    )
+
+while True:
+
+    frame = camera.get() # Can raise Empty exception
+
+    motion_score = mf.run_raw(frame.motion)
+    motion_detected = motion_score &gt;= motion_threshold
+
+    if motion_detected:
+        mq.put(frame, motion_score)
+    else:
+        # Safe to call repeatedly; will only end non-empty motion sequence
+        mq.end_motion_sequence()
+```
+
+The modularity here means Different implementations for animal filtering and motion filtering stages can be used.
+&#34;&#34;&#34;
+
+from dataclasses import dataclass
+from typing import List
+from enum import Enum
+from multiprocessing import Event, Process, Queue, Value
+from multiprocessing.queues import Queue as QueueType
+from time import time
+
+from DynAIkonTrap.camera import Frame
+from DynAIkonTrap.logging import get_logger
+from DynAIkonTrap.settings import MotionQueueSettings
+from DynAIkonTrap.filtering.animal import AnimalFilter
+
+logger = get_logger(__name__)
+
+
+class Label(Enum):
+    &#34;&#34;&#34;Categories into which a frame can fall&#34;&#34;&#34;
+
+    EMPTY = 0
+    ANIMAL = 1
+    UNKNOWN = 2
+
+
+@dataclass
+class LabelledFrame:
+    &#34;&#34;&#34;A frame of motion and image data accompanied by some additional labels for the motion queue&#34;&#34;&#34;
+
+    frame: Frame
+    index: int
+    priority: float  # Higher means more likely to be animal
+    label: Label = Label.UNKNOWN
+
+
+class MotionSequence:
+    &#34;&#34;&#34;Sequence of consecutive frames with motion deemed sufficient by a previous motion filtering stage. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about.&#34;&#34;&#34;
+
+    def __init__(self, smoothing_len: int):
+        &#34;&#34;&#34;
+        Args:
+            smoothing_len (int): Number of frames by which to smooth animal detections in either direction
+        &#34;&#34;&#34;
+        self._frames: List[LabelledFrame] = []
+        self.smoothing_len = smoothing_len
+        self.complete = False
+        self.labelled = False
+        self._next_index = 0
+
+    def _label(self, frames, val):
+        for frame in frames:
+            frame.label = val
+            frame.priority = -1
+
+        for frame in self._frames:
+            if frame.label is Label.UNKNOWN:
+                break
+        else:
+            self.labelled = True
+
+    def label_as_animal(self, frame: LabelledFrame):
+        &#34;&#34;&#34;Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
+
+        Args:
+            frame (LabelledFrame): The frame to be labelled as containing an animal
+        &#34;&#34;&#34;
+        frame_index = frame.index
+        start = max(frame_index - self.smoothing_len, 0)
+        stop = min(frame_index + self.smoothing_len, len(self._frames))
+        self._label(self._frames[start : stop + 1], Label.ANIMAL)
+
+    def label_as_empty(self, frame: LabelledFrame):
+        &#34;&#34;&#34;Label the given frame as empty. Intended to be called based on the output of the animal filter. Only this frame is labelled as empty; no smoothing is applied.
+
+        Args:
+            frame (LabelledFrame): The frame to be labelled as being empty
+        &#34;&#34;&#34;
+        self._label([frame], Label.EMPTY)
+
+    def close_gaps(self):
+        &#34;&#34;&#34;Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the `smoothing_len`.&#34;&#34;&#34;
+        last_animal = None
+        current_gap = 0
+        for i, frame in enumerate(self._frames):
+
+            if frame.label == Label.ANIMAL:
+
+                if current_gap &lt;= self.smoothing_len * 2:
+                    self._label(self._frames[i - current_gap : i], Label.ANIMAL)
+
+                last_animal = i
+                current_gap = 0
+
+            elif frame.label == Label.EMPTY or frame.label == Label.UNKNOWN:
+                if last_animal is not None:
+                    current_gap += 1
+
+    def put(self, frame: Frame, motion_score: float):
+        &#34;&#34;&#34;Append the frame to this motion sequence
+
+        Args:
+            frame (Frame): Frame to be put in this motion sequence
+            motion_score (float): Output value for this frame from the motion filtering stage
+        &#34;&#34;&#34;
+        self._frames.append(
+            LabelledFrame(frame=frame, index=self._next_index, priority=motion_score)
+        )
+        self._next_index += 1
+
+    def get_highest_priority(self) -&gt; LabelledFrame:
+        &#34;&#34;&#34;Finds the frame with the highest priority in the motion sequence. This should be the next frame to be passed to the animal filtering stage.
+
+        Returns:
+            LabelledFrame: Frame to be analysed by the animal filtering stage
+        &#34;&#34;&#34;
+        highest_priority_frame = max(self._frames, key=lambda frame: frame.priority)
+        if highest_priority_frame.priority &lt; 0:
+            return None
+        return highest_priority_frame
+
+    def get_animal_frames(self) -&gt; List[LabelledFrame]:
+        &#34;&#34;&#34;Retrieve only the animal frames from the motion sequence
+
+        Returns:
+            List[LabelledFrame]: List of animal frames from this motion sequence
+        &#34;&#34;&#34;
+        return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))
+
+    def __len__(self):
+        return len(self._frames)
+
+
+class MotionQueue:
+    &#34;&#34;&#34;A queue for sequences of motion to be analysed by the animal filter&#34;&#34;&#34;
+
+    def __init__(
+        self,
+        settings: MotionQueueSettings,
+        animal_detector: AnimalFilter,
+        framerate: int,
+    ):
+        &#34;&#34;&#34;
+        Args:
+            settings (MotionQueueSettings): Settings for the queue
+            animal_detector (AnimalFilter): An initialised animal filter to apply to frames in the motion sequences
+            output_callback (Callable[[List[Frame]], Any]): Function to call with filtered frames
+            framerate (int): Framerate at which the frames were recorded
+        &#34;&#34;&#34;
+        self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
+        self._sequence_len = framerate * settings.max_sequence_period_s
+        self._current_sequence = MotionSequence(self._smoothing_len)
+        self._queue: QueueType[MotionSequence] = Queue()
+        self._animal_detector = animal_detector
+        self._output_queue: QueueType[Frame] = Queue()
+
+        self._mean_time = Value(&#39;d&#39;)
+        with self._mean_time.get_lock():
+            self._mean_time.value = 1 / 0.3
+
+        self._remaining_frames = Value(&#39;L&#39;)
+        with self._remaining_frames.get_lock():
+            self._remaining_frames.value = 0
+
+        self._idle = Event()
+        self._idle.set()
+
+        self._process = Process(target=self._process_queue, daemon=True)
+        self._process.start()
+
+    def put(self, frame: Frame, motion_score: float):
+        &#34;&#34;&#34;Append the given frame to the current motion sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
+
+        Args:
+            frame (Frame): A frame of motion and image data to be analysed
+            motion_score (float): Output value for this frame from the motion filtering stage
+        &#34;&#34;&#34;
+        self._idle.clear()
+        self._current_sequence.put(frame, motion_score)
+        if len(self._current_sequence) &gt;= self._sequence_len:
+            self.end_motion_sequence()
+
+    def end_motion_sequence(self):
+        &#34;&#34;&#34;End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter.&#34;&#34;&#34;
+        current_len = len(self._current_sequence)
+        if current_len &gt; 0:
+            self._queue.put(self._current_sequence)
+            self._current_sequence = MotionSequence(self._smoothing_len)
+
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value += current_len
+
+            logger.info(
+                &#39;End of motion ({} frames will take &lt;=~{:.0f}s; {:.0f}s cumulative)&#39;.format(
+                    current_len,
+                    current_len * self._mean_time.value,
+                    self._remaining_frames.value * self._mean_time.value,
+                )
+            )
+
+    def _process_queue(self):
+        while True:
+            sequence = self._queue.get()
+            self._idle.clear()
+
+            # Timing full sequence
+            t_start = time()
+
+            # Timing animal detector inference
+            t_actual_framerate = 0
+            inference_count = 0
+            t_temp = time()
+
+            frame = sequence.get_highest_priority()
+            while frame:
+                is_animal = self._animal_detector.run(frame.frame.image)
+
+                _t = time()
+                t_actual_framerate += _t - t_temp
+                t_temp = _t
+                inference_count += 1
+
+                if is_animal:
+                    sequence.label_as_animal(frame)
+                else:
+                    sequence.label_as_empty(frame)
+                frame = sequence.get_highest_priority()
+
+            sequence.close_gaps()
+            t_stop = time()
+            t = t_stop - t_start
+
+            # Update average inferencing time
+            with self._mean_time.get_lock():
+                self._mean_time.value = (
+                    self._mean_time.value + t_actual_framerate / inference_count
+                ) / 2
+
+            logger.info(
+                &#39;It took {:.1f}s to process {} frames ({} animal) =&gt; ~{:.2f}FPS&#39;.format(
+                    t,
+                    len(sequence),
+                    len(sequence.get_animal_frames()),
+                    len(sequence) / t,
+                )
+            )
+            output = list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
+            output += [None] if len(output) &gt; 0 else []
+            [self._output_queue.put(f) for f in output]
+            self._idle.set()
+
+            # Update count of frames
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value -= len(sequence)
+
+    def is_idle(self) -&gt; bool:
+        &#34;&#34;&#34;Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future.&#34;&#34;&#34;
+        return (self._queue.qsize() == 0) and self._idle.is_set()
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next animal `Frame` from the motion queue&#39;s output
+
+        Returns:
+            Frame: An animal frame
+        &#34;&#34;&#34;
+        return self._output_queue.get()
+
+    def close(self):
+        self._process.terminate()
+        self._process.join()</code></pre>
+</details>
 </section>
 <section>
 </section>
@@ -66,6 +388,17 @@ while True:
 </code></dt>
 <dd>
 <div class="desc"><p>Categories into which a frame can fall</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Label(Enum):
+    &#34;&#34;&#34;Categories into which a frame can fall&#34;&#34;&#34;
+
+    EMPTY = 0
+    ANIMAL = 1
+    UNKNOWN = 2</code></pre>
+</details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li>enum.Enum</li>
@@ -92,6 +425,18 @@ while True:
 </code></dt>
 <dd>
 <div class="desc"><p>A frame of motion and image data accompanied by some additional labels for the motion queue</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class LabelledFrame:
+    &#34;&#34;&#34;A frame of motion and image data accompanied by some additional labels for the motion queue&#34;&#34;&#34;
+
+    frame: Frame
+    index: int
+    priority: float  # Higher means more likely to be animal
+    label: Label = Label.UNKNOWN</code></pre>
+</details>
 <h3>Class variables</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.motion_queue.LabelledFrame.frame"><code class="name">var <span class="ident">frame</span> : <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a></code></dt>
@@ -129,6 +474,148 @@ while True:
 <dt><strong><code>framerate</code></strong> :&ensp;<code>int</code></dt>
 <dd>Framerate at which the frames were recorded</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MotionQueue:
+    &#34;&#34;&#34;A queue for sequences of motion to be analysed by the animal filter&#34;&#34;&#34;
+
+    def __init__(
+        self,
+        settings: MotionQueueSettings,
+        animal_detector: AnimalFilter,
+        framerate: int,
+    ):
+        &#34;&#34;&#34;
+        Args:
+            settings (MotionQueueSettings): Settings for the queue
+            animal_detector (AnimalFilter): An initialised animal filter to apply to frames in the motion sequences
+            output_callback (Callable[[List[Frame]], Any]): Function to call with filtered frames
+            framerate (int): Framerate at which the frames were recorded
+        &#34;&#34;&#34;
+        self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
+        self._sequence_len = framerate * settings.max_sequence_period_s
+        self._current_sequence = MotionSequence(self._smoothing_len)
+        self._queue: QueueType[MotionSequence] = Queue()
+        self._animal_detector = animal_detector
+        self._output_queue: QueueType[Frame] = Queue()
+
+        self._mean_time = Value(&#39;d&#39;)
+        with self._mean_time.get_lock():
+            self._mean_time.value = 1 / 0.3
+
+        self._remaining_frames = Value(&#39;L&#39;)
+        with self._remaining_frames.get_lock():
+            self._remaining_frames.value = 0
+
+        self._idle = Event()
+        self._idle.set()
+
+        self._process = Process(target=self._process_queue, daemon=True)
+        self._process.start()
+
+    def put(self, frame: Frame, motion_score: float):
+        &#34;&#34;&#34;Append the given frame to the current motion sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
+
+        Args:
+            frame (Frame): A frame of motion and image data to be analysed
+            motion_score (float): Output value for this frame from the motion filtering stage
+        &#34;&#34;&#34;
+        self._idle.clear()
+        self._current_sequence.put(frame, motion_score)
+        if len(self._current_sequence) &gt;= self._sequence_len:
+            self.end_motion_sequence()
+
+    def end_motion_sequence(self):
+        &#34;&#34;&#34;End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter.&#34;&#34;&#34;
+        current_len = len(self._current_sequence)
+        if current_len &gt; 0:
+            self._queue.put(self._current_sequence)
+            self._current_sequence = MotionSequence(self._smoothing_len)
+
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value += current_len
+
+            logger.info(
+                &#39;End of motion ({} frames will take &lt;=~{:.0f}s; {:.0f}s cumulative)&#39;.format(
+                    current_len,
+                    current_len * self._mean_time.value,
+                    self._remaining_frames.value * self._mean_time.value,
+                )
+            )
+
+    def _process_queue(self):
+        while True:
+            sequence = self._queue.get()
+            self._idle.clear()
+
+            # Timing full sequence
+            t_start = time()
+
+            # Timing animal detector inference
+            t_actual_framerate = 0
+            inference_count = 0
+            t_temp = time()
+
+            frame = sequence.get_highest_priority()
+            while frame:
+                is_animal = self._animal_detector.run(frame.frame.image)
+
+                _t = time()
+                t_actual_framerate += _t - t_temp
+                t_temp = _t
+                inference_count += 1
+
+                if is_animal:
+                    sequence.label_as_animal(frame)
+                else:
+                    sequence.label_as_empty(frame)
+                frame = sequence.get_highest_priority()
+
+            sequence.close_gaps()
+            t_stop = time()
+            t = t_stop - t_start
+
+            # Update average inferencing time
+            with self._mean_time.get_lock():
+                self._mean_time.value = (
+                    self._mean_time.value + t_actual_framerate / inference_count
+                ) / 2
+
+            logger.info(
+                &#39;It took {:.1f}s to process {} frames ({} animal) =&gt; ~{:.2f}FPS&#39;.format(
+                    t,
+                    len(sequence),
+                    len(sequence.get_animal_frames()),
+                    len(sequence) / t,
+                )
+            )
+            output = list(map(lambda frame: frame.frame, sequence.get_animal_frames()))
+            output += [None] if len(output) &gt; 0 else []
+            [self._output_queue.put(f) for f in output]
+            self._idle.set()
+
+            # Update count of frames
+            with self._remaining_frames.get_lock():
+                self._remaining_frames.value -= len(sequence)
+
+    def is_idle(self) -&gt; bool:
+        &#34;&#34;&#34;Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future.&#34;&#34;&#34;
+        return (self._queue.qsize() == 0) and self._idle.is_set()
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next animal `Frame` from the motion queue&#39;s output
+
+        Returns:
+            Frame: An animal frame
+        &#34;&#34;&#34;
+        return self._output_queue.get()
+
+    def close(self):
+        self._process.terminate()
+        self._process.join()</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.close"><code class="name flex">
@@ -136,12 +623,42 @@ while True:
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def close(self):
+    self._process.terminate()
+    self._process.join()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.end_motion_sequence"><code class="name flex">
 <span>def <span class="ident">end_motion_sequence</span></span>(<span>self)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def end_motion_sequence(self):
+    &#34;&#34;&#34;End the current motion sequence and prepare the next one. To be called when there is a gap in motion. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the motion sequence to be processed by the animal filter.&#34;&#34;&#34;
+    current_len = len(self._current_sequence)
+    if current_len &gt; 0:
+        self._queue.put(self._current_sequence)
+        self._current_sequence = MotionSequence(self._smoothing_len)
+
+        with self._remaining_frames.get_lock():
+            self._remaining_frames.value += current_len
+
+        logger.info(
+            &#39;End of motion ({} frames will take &lt;=~{:.0f}s; {:.0f}s cumulative)&#39;.format(
+                current_len,
+                current_len * self._mean_time.value,
+                self._remaining_frames.value * self._mean_time.value,
+            )
+        )</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.get"><code class="name flex">
 <span>def <span class="ident">get</span></span>(<span>self) ‑> <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a></span>
@@ -153,12 +670,32 @@ while True:
 <dt><code>Frame</code></dt>
 <dd>An animal frame</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get(self) -&gt; Frame:
+    &#34;&#34;&#34;Retrieve the next animal `Frame` from the motion queue&#39;s output
+
+    Returns:
+        Frame: An animal frame
+    &#34;&#34;&#34;
+    return self._output_queue.get()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.is_idle"><code class="name flex">
 <span>def <span class="ident">is_idle</span></span>(<span>self) ‑> bool</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_idle(self) -&gt; bool:
+    &#34;&#34;&#34;Allows checking if the motion queue is currently waiting for new frames to arrive. May be removed in future.&#34;&#34;&#34;
+    return (self._queue.qsize() == 0) and self._idle.is_set()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionQueue.put"><code class="name flex">
 <span>def <span class="ident">put</span></span>(<span>self, frame: <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a>, motion_score: float)</span>
@@ -172,6 +709,22 @@ while True:
 <dt><strong><code>motion_score</code></strong> :&ensp;<code>float</code></dt>
 <dd>Output value for this frame from the motion filtering stage</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def put(self, frame: Frame, motion_score: float):
+    &#34;&#34;&#34;Append the given frame to the current motion sequence. If the sequence exceeds the length limit, a new one is automatically started. This prevents excessively long motion sequences.
+
+    Args:
+        frame (Frame): A frame of motion and image data to be analysed
+        motion_score (float): Output value for this frame from the motion filtering stage
+    &#34;&#34;&#34;
+    self._idle.clear()
+    self._current_sequence.put(frame, motion_score)
+    if len(self._current_sequence) &gt;= self._sequence_len:
+        self.end_motion_sequence()</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -186,6 +739,106 @@ while True:
 <dt><strong><code>smoothing_len</code></strong> :&ensp;<code>int</code></dt>
 <dd>Number of frames by which to smooth animal detections in either direction</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MotionSequence:
+    &#34;&#34;&#34;Sequence of consecutive frames with motion deemed sufficient by a previous motion filtering stage. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about.&#34;&#34;&#34;
+
+    def __init__(self, smoothing_len: int):
+        &#34;&#34;&#34;
+        Args:
+            smoothing_len (int): Number of frames by which to smooth animal detections in either direction
+        &#34;&#34;&#34;
+        self._frames: List[LabelledFrame] = []
+        self.smoothing_len = smoothing_len
+        self.complete = False
+        self.labelled = False
+        self._next_index = 0
+
+    def _label(self, frames, val):
+        for frame in frames:
+            frame.label = val
+            frame.priority = -1
+
+        for frame in self._frames:
+            if frame.label is Label.UNKNOWN:
+                break
+        else:
+            self.labelled = True
+
+    def label_as_animal(self, frame: LabelledFrame):
+        &#34;&#34;&#34;Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
+
+        Args:
+            frame (LabelledFrame): The frame to be labelled as containing an animal
+        &#34;&#34;&#34;
+        frame_index = frame.index
+        start = max(frame_index - self.smoothing_len, 0)
+        stop = min(frame_index + self.smoothing_len, len(self._frames))
+        self._label(self._frames[start : stop + 1], Label.ANIMAL)
+
+    def label_as_empty(self, frame: LabelledFrame):
+        &#34;&#34;&#34;Label the given frame as empty. Intended to be called based on the output of the animal filter. Only this frame is labelled as empty; no smoothing is applied.
+
+        Args:
+            frame (LabelledFrame): The frame to be labelled as being empty
+        &#34;&#34;&#34;
+        self._label([frame], Label.EMPTY)
+
+    def close_gaps(self):
+        &#34;&#34;&#34;Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the `smoothing_len`.&#34;&#34;&#34;
+        last_animal = None
+        current_gap = 0
+        for i, frame in enumerate(self._frames):
+
+            if frame.label == Label.ANIMAL:
+
+                if current_gap &lt;= self.smoothing_len * 2:
+                    self._label(self._frames[i - current_gap : i], Label.ANIMAL)
+
+                last_animal = i
+                current_gap = 0
+
+            elif frame.label == Label.EMPTY or frame.label == Label.UNKNOWN:
+                if last_animal is not None:
+                    current_gap += 1
+
+    def put(self, frame: Frame, motion_score: float):
+        &#34;&#34;&#34;Append the frame to this motion sequence
+
+        Args:
+            frame (Frame): Frame to be put in this motion sequence
+            motion_score (float): Output value for this frame from the motion filtering stage
+        &#34;&#34;&#34;
+        self._frames.append(
+            LabelledFrame(frame=frame, index=self._next_index, priority=motion_score)
+        )
+        self._next_index += 1
+
+    def get_highest_priority(self) -&gt; LabelledFrame:
+        &#34;&#34;&#34;Finds the frame with the highest priority in the motion sequence. This should be the next frame to be passed to the animal filtering stage.
+
+        Returns:
+            LabelledFrame: Frame to be analysed by the animal filtering stage
+        &#34;&#34;&#34;
+        highest_priority_frame = max(self._frames, key=lambda frame: frame.priority)
+        if highest_priority_frame.priority &lt; 0:
+            return None
+        return highest_priority_frame
+
+    def get_animal_frames(self) -&gt; List[LabelledFrame]:
+        &#34;&#34;&#34;Retrieve only the animal frames from the motion sequence
+
+        Returns:
+            List[LabelledFrame]: List of animal frames from this motion sequence
+        &#34;&#34;&#34;
+        return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))
+
+    def __len__(self):
+        return len(self._frames)</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.close_gaps"><code class="name flex">
@@ -193,6 +846,28 @@ while True:
 </code></dt>
 <dd>
 <div class="desc"><p>Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the <code>smoothing_len</code>.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def close_gaps(self):
+    &#34;&#34;&#34;Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the `smoothing_len`.&#34;&#34;&#34;
+    last_animal = None
+    current_gap = 0
+    for i, frame in enumerate(self._frames):
+
+        if frame.label == Label.ANIMAL:
+
+            if current_gap &lt;= self.smoothing_len * 2:
+                self._label(self._frames[i - current_gap : i], Label.ANIMAL)
+
+            last_animal = i
+            current_gap = 0
+
+        elif frame.label == Label.EMPTY or frame.label == Label.UNKNOWN:
+            if last_animal is not None:
+                current_gap += 1</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.get_animal_frames"><code class="name flex">
 <span>def <span class="ident">get_animal_frames</span></span>(<span>self) ‑> List[<a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a>]</span>
@@ -204,6 +879,18 @@ while True:
 <dt><code>List[<a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a>]</code></dt>
 <dd>List of animal frames from this motion sequence</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_animal_frames(self) -&gt; List[LabelledFrame]:
+    &#34;&#34;&#34;Retrieve only the animal frames from the motion sequence
+
+    Returns:
+        List[LabelledFrame]: List of animal frames from this motion sequence
+    &#34;&#34;&#34;
+    return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.get_highest_priority"><code class="name flex">
 <span>def <span class="ident">get_highest_priority</span></span>(<span>self) ‑> <a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a></span>
@@ -215,6 +902,21 @@ while True:
 <dt><code><a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a></code></dt>
 <dd>Frame to be analysed by the animal filtering stage</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_highest_priority(self) -&gt; LabelledFrame:
+    &#34;&#34;&#34;Finds the frame with the highest priority in the motion sequence. This should be the next frame to be passed to the animal filtering stage.
+
+    Returns:
+        LabelledFrame: Frame to be analysed by the animal filtering stage
+    &#34;&#34;&#34;
+    highest_priority_frame = max(self._frames, key=lambda frame: frame.priority)
+    if highest_priority_frame.priority &lt; 0:
+        return None
+    return highest_priority_frame</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.label_as_animal"><code class="name flex">
 <span>def <span class="ident">label_as_animal</span></span>(<span>self, frame: <a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a>)</span>
@@ -226,6 +928,21 @@ while True:
 <dt><strong><code>frame</code></strong> :&ensp;<code><a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a></code></dt>
 <dd>The frame to be labelled as containing an animal</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def label_as_animal(self, frame: LabelledFrame):
+    &#34;&#34;&#34;Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
+
+    Args:
+        frame (LabelledFrame): The frame to be labelled as containing an animal
+    &#34;&#34;&#34;
+    frame_index = frame.index
+    start = max(frame_index - self.smoothing_len, 0)
+    stop = min(frame_index + self.smoothing_len, len(self._frames))
+    self._label(self._frames[start : stop + 1], Label.ANIMAL)</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.label_as_empty"><code class="name flex">
 <span>def <span class="ident">label_as_empty</span></span>(<span>self, frame: <a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a>)</span>
@@ -237,6 +954,18 @@ while True:
 <dt><strong><code>frame</code></strong> :&ensp;<code><a title="DynAIkonTrap.filtering.motion_queue.LabelledFrame" href="#DynAIkonTrap.filtering.motion_queue.LabelledFrame">LabelledFrame</a></code></dt>
 <dd>The frame to be labelled as being empty</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def label_as_empty(self, frame: LabelledFrame):
+    &#34;&#34;&#34;Label the given frame as empty. Intended to be called based on the output of the animal filter. Only this frame is labelled as empty; no smoothing is applied.
+
+    Args:
+        frame (LabelledFrame): The frame to be labelled as being empty
+    &#34;&#34;&#34;
+    self._label([frame], Label.EMPTY)</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.motion_queue.MotionSequence.put"><code class="name flex">
 <span>def <span class="ident">put</span></span>(<span>self, frame: <a title="DynAIkonTrap.camera.Frame" href="../camera.html#DynAIkonTrap.camera.Frame">Frame</a>, motion_score: float)</span>
@@ -250,6 +979,22 @@ while True:
 <dt><strong><code>motion_score</code></strong> :&ensp;<code>float</code></dt>
 <dd>Output value for this frame from the motion filtering stage</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def put(self, frame: Frame, motion_score: float):
+    &#34;&#34;&#34;Append the frame to this motion sequence
+
+    Args:
+        frame (Frame): Frame to be put in this motion sequence
+        motion_score (float): Output value for this frame from the motion filtering stage
+    &#34;&#34;&#34;
+    self._frames.append(
+        LabelledFrame(frame=frame, index=self._next_index, priority=motion_score)
+    )
+    self._next_index += 1</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -313,7 +1058,7 @@ while True:
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>

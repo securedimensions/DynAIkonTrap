@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>DynAIkonTrap.camera API documentation</title>
 <meta name="description" content="Provides a simplified interface to the `PiCamera` library class. The `Camera` class gives provides the `Frame`s from the camera&#39;s stream via a queue …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -24,6 +24,147 @@
 <section id="section-intro">
 <p>Provides a simplified interface to the <code>PiCamera</code> library class. The <code><a title="DynAIkonTrap.camera.Camera" href="#DynAIkonTrap.camera.Camera">Camera</a></code> class gives provides the <code><a title="DynAIkonTrap.camera.Frame" href="#DynAIkonTrap.camera.Frame">Frame</a></code>s from the camera's stream via a queue. Initialising the <code><a title="DynAIkonTrap.camera.Camera" href="#DynAIkonTrap.camera.Camera">Camera</a></code> takes care of setting up the necessary motion vector and image streams under the hood.</p>
 <p>A <code><a title="DynAIkonTrap.camera.Frame" href="#DynAIkonTrap.camera.Frame">Frame</a></code> is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+&#34;&#34;&#34;
+Provides a simplified interface to the `PiCamera` library class. The `Camera` class gives provides the `Frame`s from the camera&#39;s stream via a queue. Initialising the `Camera` takes care of setting up the necessary motion vector and image streams under the hood.
+
+A `Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
+&#34;&#34;&#34;
+from queue import Empty
+from time import sleep, time
+import numpy as np
+from multiprocessing import Queue
+from multiprocessing.queues import Queue as QueueType
+from dataclasses import dataclass
+from typing import Tuple
+
+try:
+    from picamera import PiCamera
+    from picamera.array import PiMotionAnalysis
+except OSError:
+    # Ignore error that occurs when running pdoc3
+    class PiMotionAnalysis:
+        pass
+
+
+from DynAIkonTrap.settings import CameraSettings
+from DynAIkonTrap.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class Frame:
+    &#34;&#34;&#34;A frame from the camera consisting of motion and image information as well as the time of capture.&#34;&#34;&#34;
+
+    image: bytes
+    motion: np.ndarray
+    timestamp: float
+
+
+class Synchroniser:
+    def __init__(self, output: QueueType):
+        self._last_image = None
+        self._output = output
+
+    def tick_movement_frame(self, motion):
+        if self._last_image is not None:
+            image = np.asarray(bytearray(self._last_image), dtype=&#34;uint8&#34;)
+        else:
+            return
+        self._output.put_nowait(Frame(image, motion, time()))
+
+    def tick_image_frame(self, image):
+        self._last_image = image
+
+
+class MovementAnalyser(PiMotionAnalysis):
+    def __init__(self, camera, synchroniser):
+        super().__init__(camera)
+        self._sync = synchroniser
+
+    def analyse(self, motion):
+        self._sync.tick_movement_frame(motion)
+
+
+class ImageReader:
+    def __init__(self, synchroniser):
+        self._sync = synchroniser
+
+    def write(self, buf):
+        if buf.startswith(b&#39;\xff\xd8&#39;):
+            self._sync.tick_image_frame(buf)
+
+
+class Camera:
+    &#34;&#34;&#34;Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system.&#34;&#34;&#34;
+
+    def __init__(self, settings: CameraSettings):
+        &#34;&#34;&#34;Takes a `CameraSettings` object to initialise and start the camera hardware.&#34;&#34;&#34;
+
+        self.resolution = settings.resolution
+        self.framerate = settings.framerate
+        self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
+        sleep(2)  # Camera warmup
+
+        self._output: QueueType[Frame] = Queue()
+        synchroniser = Synchroniser(self._output)
+        self._camera.start_recording(
+            &#39;/dev/null&#39;,
+            format=&#39;h264&#39;,
+            motion_output=MovementAnalyser(self._camera, synchroniser),
+        )
+        self._camera.start_recording(
+            ImageReader(synchroniser), format=&#39;mjpeg&#39;, splitter_port=2
+        )
+        logger.debug(&#39;Camera started&#39;)
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next frame from the camera
+
+        Raises:
+            Empty: If the camera has not captured any frames since the last call
+
+        Returns:
+            Frame: A frame from the camera video stream
+        &#34;&#34;&#34;
+        try:
+            return self._output.get(1 / self.framerate)
+
+        except Empty:
+            logger.error(&#39;No frames available from Camera&#39;)
+            self._no_frames = True
+            raise Empty
+
+    def empty(self) -&gt; bool:
+        &#34;&#34;&#34;Indicates if the queue of buffered frames is empty
+
+        Returns:
+            bool: `True` if there are no more frames, otherwise `False`
+        &#34;&#34;&#34;
+        return self._output.empty()
+
+    def close(self):
+        self._camera.stop_recording()</code></pre>
+</details>
 </section>
 <section>
 </section>
@@ -41,6 +182,61 @@
 <dd>
 <div class="desc"><p>Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system.</p>
 <p>Takes a <code>CameraSettings</code> object to initialise and start the camera hardware.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Camera:
+    &#34;&#34;&#34;Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system.&#34;&#34;&#34;
+
+    def __init__(self, settings: CameraSettings):
+        &#34;&#34;&#34;Takes a `CameraSettings` object to initialise and start the camera hardware.&#34;&#34;&#34;
+
+        self.resolution = settings.resolution
+        self.framerate = settings.framerate
+        self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
+        sleep(2)  # Camera warmup
+
+        self._output: QueueType[Frame] = Queue()
+        synchroniser = Synchroniser(self._output)
+        self._camera.start_recording(
+            &#39;/dev/null&#39;,
+            format=&#39;h264&#39;,
+            motion_output=MovementAnalyser(self._camera, synchroniser),
+        )
+        self._camera.start_recording(
+            ImageReader(synchroniser), format=&#39;mjpeg&#39;, splitter_port=2
+        )
+        logger.debug(&#39;Camera started&#39;)
+
+    def get(self) -&gt; Frame:
+        &#34;&#34;&#34;Retrieve the next frame from the camera
+
+        Raises:
+            Empty: If the camera has not captured any frames since the last call
+
+        Returns:
+            Frame: A frame from the camera video stream
+        &#34;&#34;&#34;
+        try:
+            return self._output.get(1 / self.framerate)
+
+        except Empty:
+            logger.error(&#39;No frames available from Camera&#39;)
+            self._no_frames = True
+            raise Empty
+
+    def empty(self) -&gt; bool:
+        &#34;&#34;&#34;Indicates if the queue of buffered frames is empty
+
+        Returns:
+            bool: `True` if there are no more frames, otherwise `False`
+        &#34;&#34;&#34;
+        return self._output.empty()
+
+    def close(self):
+        self._camera.stop_recording()</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.camera.Camera.close"><code class="name flex">
@@ -48,6 +244,13 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def close(self):
+    self._camera.stop_recording()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.camera.Camera.empty"><code class="name flex">
 <span>def <span class="ident">empty</span></span>(<span>self) ‑> bool</span>
@@ -59,6 +262,18 @@
 <dt><code>bool</code></dt>
 <dd><code>True</code> if there are no more frames, otherwise <code>False</code></dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def empty(self) -&gt; bool:
+    &#34;&#34;&#34;Indicates if the queue of buffered frames is empty
+
+    Returns:
+        bool: `True` if there are no more frames, otherwise `False`
+    &#34;&#34;&#34;
+    return self._output.empty()</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.camera.Camera.get"><code class="name flex">
 <span>def <span class="ident">get</span></span>(<span>self) ‑> <a title="DynAIkonTrap.camera.Frame" href="#DynAIkonTrap.camera.Frame">Frame</a></span>
@@ -75,6 +290,27 @@
 <dt><code><a title="DynAIkonTrap.camera.Frame" href="#DynAIkonTrap.camera.Frame">Frame</a></code></dt>
 <dd>A frame from the camera video stream</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get(self) -&gt; Frame:
+    &#34;&#34;&#34;Retrieve the next frame from the camera
+
+    Raises:
+        Empty: If the camera has not captured any frames since the last call
+
+    Returns:
+        Frame: A frame from the camera video stream
+    &#34;&#34;&#34;
+    try:
+        return self._output.get(1 / self.framerate)
+
+    except Empty:
+        logger.error(&#39;No frames available from Camera&#39;)
+        self._no_frames = True
+        raise Empty</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -84,6 +320,17 @@
 </code></dt>
 <dd>
 <div class="desc"><p>A frame from the camera consisting of motion and image information as well as the time of capture.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Frame:
+    &#34;&#34;&#34;A frame from the camera consisting of motion and image information as well as the time of capture.&#34;&#34;&#34;
+
+    image: bytes
+    motion: np.ndarray
+    timestamp: float</code></pre>
+</details>
 <h3>Class variables</h3>
 <dl>
 <dt id="DynAIkonTrap.camera.Frame.image"><code class="name">var <span class="ident">image</span> : bytes</code></dt>
@@ -106,6 +353,18 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class ImageReader:
+    def __init__(self, synchroniser):
+        self._sync = synchroniser
+
+    def write(self, buf):
+        if buf.startswith(b&#39;\xff\xd8&#39;):
+            self._sync.tick_image_frame(buf)</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.camera.ImageReader.write"><code class="name flex">
@@ -113,6 +372,14 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def write(self, buf):
+    if buf.startswith(b&#39;\xff\xd8&#39;):
+        self._sync.tick_image_frame(buf)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -122,6 +389,18 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MovementAnalyser(PiMotionAnalysis):
+    def __init__(self, camera, synchroniser):
+        super().__init__(camera)
+        self._sync = synchroniser
+
+    def analyse(self, motion):
+        self._sync.tick_movement_frame(motion)</code></pre>
+</details>
 <h3>Ancestors</h3>
 <ul class="hlist">
 <li><a title="DynAIkonTrap.camera.PiMotionAnalysis" href="#DynAIkonTrap.camera.PiMotionAnalysis">PiMotionAnalysis</a></li>
@@ -133,6 +412,13 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def analyse(self, motion):
+    self._sync.tick_movement_frame(motion)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -141,6 +427,13 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class PiMotionAnalysis:
+    pass</code></pre>
+</details>
 <h3>Subclasses</h3>
 <ul class="hlist">
 <li><a title="DynAIkonTrap.camera.MovementAnalyser" href="#DynAIkonTrap.camera.MovementAnalyser">MovementAnalyser</a></li>
@@ -152,6 +445,25 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Synchroniser:
+    def __init__(self, output: QueueType):
+        self._last_image = None
+        self._output = output
+
+    def tick_movement_frame(self, motion):
+        if self._last_image is not None:
+            image = np.asarray(bytearray(self._last_image), dtype=&#34;uint8&#34;)
+        else:
+            return
+        self._output.put_nowait(Frame(image, motion, time()))
+
+    def tick_image_frame(self, image):
+        self._last_image = image</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.camera.Synchroniser.tick_image_frame"><code class="name flex">
@@ -159,12 +471,30 @@
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def tick_image_frame(self, image):
+    self._last_image = image</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.camera.Synchroniser.tick_movement_frame"><code class="name flex">
 <span>def <span class="ident">tick_movement_frame</span></span>(<span>self, motion)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def tick_movement_frame(self, motion):
+    if self._last_image is not None:
+        image = np.asarray(bytearray(self._last_image), dtype=&#34;uint8&#34;)
+    else:
+        return
+    self._output.put_nowait(Frame(image, motion, time()))</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -228,7 +558,7 @@
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>

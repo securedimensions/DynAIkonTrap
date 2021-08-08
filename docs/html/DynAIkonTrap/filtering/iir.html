@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>DynAIkonTrap.filtering.iir API documentation</title>
 <meta name="description" content="The IIR filter architecture provided in this module can be used to filter/smooth &#34;continuous&#34; data signals in time. In particular, it is used in the …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -23,6 +23,99 @@
 </header>
 <section id="section-intro">
 <p>The IIR filter architecture provided in this module can be used to filter/smooth "continuous" data signals in time. In particular, it is used in the motion filtering stage of the filtering pipeline.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+&#34;&#34;&#34;
+The IIR filter architecture provided in this module can be used to filter/smooth &#34;continuous&#34; data signals in time. In particular, it is used in the motion filtering stage of the filtering pipeline.
+&#34;&#34;&#34;
+
+
+class IIR2Filter:
+    &#34;&#34;&#34;Second order IIR filter stage&#34;&#34;&#34;
+
+    def __init__(self, coeffs: &#39;numpy.ndarray&#39;):
+        &#34;&#34;&#34;
+        Args:
+            coeffs (numpy.ndarray): SOS coefficients as returned by the utility functions from scipy
+        &#34;&#34;&#34;
+        self.b0 = coeffs[0]
+        self.b1 = coeffs[1]
+        self.b2 = coeffs[2]
+        self.a0 = coeffs[3]
+        self.a1 = coeffs[4]
+        self.a2 = coeffs[5]
+        self.tap1 = 0
+        self.tap2 = 0
+
+    def filter(self, x: float) -&gt; float:
+        &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+        Args:
+            x (float): A data sample
+
+        Returns:
+            float: The filtered sample
+        &#34;&#34;&#34;
+
+        output = self.b1 * self.tap1
+        x = x - (self.a1 * self.tap1)
+        output = output + (self.b2 * self.tap2)
+        x = x - (self.a2 * self.tap2)
+        output = output + x * self.b0
+        self.tap2 = self.tap1
+        self.tap1 = x
+        return output
+
+    def reset(self):
+        self.tap1, self.tap2 = 0, 0
+
+
+class IIRFilter(object):
+    &#34;&#34;&#34;IIR filter constructed from IIR2Filters&#34;&#34;&#34;
+
+    def __init__(self, SOS: &#39;numpy.ndarray&#39;):
+        &#34;&#34;&#34;
+        Creates a chain of 2nd order filter instances of IIR2Filter
+
+        Args:
+            SOS (numpy.ndarray): SOS coefficients as returned by the utility functions from scipy
+        &#34;&#34;&#34;
+
+        self.iir2filters = [IIR2Filter(coeffs) for coeffs in SOS]
+
+    def filter(self, x: float) -&gt; float:
+        &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+        Args:
+            x (float): A data sample
+
+        Returns:
+            float: The filtered sample
+        &#34;&#34;&#34;
+        for filter in self.iir2filters:
+            x = filter.filter(x)
+        return x
+
+    def reset(self):
+        [f.reset() for f in self.iir2filters]</code></pre>
+</details>
 </section>
 <section>
 </section>
@@ -44,6 +137,49 @@
 <dt><strong><code>coeffs</code></strong> :&ensp;<code>numpy.ndarray</code></dt>
 <dd>SOS coefficients as returned by the utility functions from scipy</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class IIR2Filter:
+    &#34;&#34;&#34;Second order IIR filter stage&#34;&#34;&#34;
+
+    def __init__(self, coeffs: &#39;numpy.ndarray&#39;):
+        &#34;&#34;&#34;
+        Args:
+            coeffs (numpy.ndarray): SOS coefficients as returned by the utility functions from scipy
+        &#34;&#34;&#34;
+        self.b0 = coeffs[0]
+        self.b1 = coeffs[1]
+        self.b2 = coeffs[2]
+        self.a0 = coeffs[3]
+        self.a1 = coeffs[4]
+        self.a2 = coeffs[5]
+        self.tap1 = 0
+        self.tap2 = 0
+
+    def filter(self, x: float) -&gt; float:
+        &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+        Args:
+            x (float): A data sample
+
+        Returns:
+            float: The filtered sample
+        &#34;&#34;&#34;
+
+        output = self.b1 * self.tap1
+        x = x - (self.a1 * self.tap1)
+        output = output + (self.b2 * self.tap2)
+        x = x - (self.a2 * self.tap2)
+        output = output + x * self.b0
+        self.tap2 = self.tap1
+        self.tap1 = x
+        return output
+
+    def reset(self):
+        self.tap1, self.tap2 = 0, 0</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.iir.IIR2Filter.filter"><code class="name flex">
@@ -61,12 +197,42 @@
 <dt><code>float</code></dt>
 <dd>The filtered sample</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def filter(self, x: float) -&gt; float:
+    &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+    Args:
+        x (float): A data sample
+
+    Returns:
+        float: The filtered sample
+    &#34;&#34;&#34;
+
+    output = self.b1 * self.tap1
+    x = x - (self.a1 * self.tap1)
+    output = output + (self.b2 * self.tap2)
+    x = x - (self.a2 * self.tap2)
+    output = output + x * self.b0
+    self.tap2 = self.tap1
+    self.tap1 = x
+    return output</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.iir.IIR2Filter.reset"><code class="name flex">
 <span>def <span class="ident">reset</span></span>(<span>self)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def reset(self):
+    self.tap1, self.tap2 = 0, 0</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -82,6 +248,39 @@
 <dt><strong><code>SOS</code></strong> :&ensp;<code>numpy.ndarray</code></dt>
 <dd>SOS coefficients as returned by the utility functions from scipy</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class IIRFilter(object):
+    &#34;&#34;&#34;IIR filter constructed from IIR2Filters&#34;&#34;&#34;
+
+    def __init__(self, SOS: &#39;numpy.ndarray&#39;):
+        &#34;&#34;&#34;
+        Creates a chain of 2nd order filter instances of IIR2Filter
+
+        Args:
+            SOS (numpy.ndarray): SOS coefficients as returned by the utility functions from scipy
+        &#34;&#34;&#34;
+
+        self.iir2filters = [IIR2Filter(coeffs) for coeffs in SOS]
+
+    def filter(self, x: float) -&gt; float:
+        &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+        Args:
+            x (float): A data sample
+
+        Returns:
+            float: The filtered sample
+        &#34;&#34;&#34;
+        for filter in self.iir2filters:
+            x = filter.filter(x)
+        return x
+
+    def reset(self):
+        [f.reset() for f in self.iir2filters]</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.iir.IIRFilter.filter"><code class="name flex">
@@ -99,12 +298,36 @@
 <dt><code>float</code></dt>
 <dd>The filtered sample</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def filter(self, x: float) -&gt; float:
+    &#34;&#34;&#34;Perform time-based filtering based on the provided data sample
+
+    Args:
+        x (float): A data sample
+
+    Returns:
+        float: The filtered sample
+    &#34;&#34;&#34;
+    for filter in self.iir2filters:
+        x = filter.filter(x)
+    return x</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.iir.IIRFilter.reset"><code class="name flex">
 <span>def <span class="ident">reset</span></span>(<span>self)</span>
 </code></dt>
 <dd>
 <div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def reset(self):
+    [f.reset() for f in self.iir2filters]</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -144,7 +367,7 @@
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>

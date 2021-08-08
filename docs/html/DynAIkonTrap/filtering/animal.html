@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>DynAIkonTrap.filtering.animal API documentation</title>
 <meta name="description" content="This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -24,6 +24,88 @@
 <section id="section-intro">
 <p>This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the <code><a title="DynAIkonTrap.filtering.animal.AnimalFilter" href="#DynAIkonTrap.filtering.animal.AnimalFilter">AnimalFilter</a></code> is a JPEG image and the output a confidence in the image containing an animal.</p>
 <p>A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see &lt;https://www.gnu.org/licenses/&gt;.
+&#34;&#34;&#34;
+This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the `AnimalFilter` is a JPEG image and the output a confidence in the image containing an animal.
+
+A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.
+&#34;&#34;&#34;
+import cv2
+import numpy as np
+
+from DynAIkonTrap.settings import AnimalFilterSettings
+
+
+class AnimalFilter:
+    &#34;&#34;&#34;Animal filter stage to indicate if a frame contains an animal
+    &#34;&#34;&#34;
+    def __init__(self, settings: AnimalFilterSettings):
+        &#34;&#34;&#34;
+        Args:
+            settings (AnimalFilterSettings): Settings for the filter
+        &#34;&#34;&#34;
+        self.threshold = settings.threshold
+
+        self.model = cv2.dnn.readNet(
+            &#39;DynAIkonTrap/filtering/yolo_animal_detector.weights&#39;,
+            &#39;DynAIkonTrap/filtering/yolo_animal_detector.cfg&#39;,
+        )
+        layer_names = self.model.getLayerNames()
+        self.output_layers = [
+            layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
+        ]
+
+    def run_raw(self, image: bytes) -&gt; float:
+        &#34;&#34;&#34;Run the animal filter on the image to give a confidence that the image frame contains an animal
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            float: Confidence in the output containing an animal as a decimal fraction
+        &#34;&#34;&#34;
+        decoded_image = cv2.resize(
+            cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
+        )
+
+        blob = cv2.dnn.blobFromImage(decoded_image, 1, (416, 416), (0, 0, 0))
+        blob = blob / 255  # Scale to be a float
+        self.model.setInput(blob)
+        output = self.model.forward(self.output_layers)
+
+        _, _, _, _, _, confidence0 = output[0].max(axis=0)
+        _, _, _, _, _, confidence1 = output[1].max(axis=0)
+        return max(confidence0, confidence1)
+
+    def run(self, image: bytes) -&gt; bool:
+        &#34;&#34;&#34;The same as `run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
+        &#34;&#34;&#34;
+        return self.run_raw(image) &gt;= self.threshold</code></pre>
+</details>
 </section>
 <section>
 </section>
@@ -45,6 +127,62 @@
 <dt><strong><code>settings</code></strong> :&ensp;<code>AnimalFilterSettings</code></dt>
 <dd>Settings for the filter</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class AnimalFilter:
+    &#34;&#34;&#34;Animal filter stage to indicate if a frame contains an animal
+    &#34;&#34;&#34;
+    def __init__(self, settings: AnimalFilterSettings):
+        &#34;&#34;&#34;
+        Args:
+            settings (AnimalFilterSettings): Settings for the filter
+        &#34;&#34;&#34;
+        self.threshold = settings.threshold
+
+        self.model = cv2.dnn.readNet(
+            &#39;DynAIkonTrap/filtering/yolo_animal_detector.weights&#39;,
+            &#39;DynAIkonTrap/filtering/yolo_animal_detector.cfg&#39;,
+        )
+        layer_names = self.model.getLayerNames()
+        self.output_layers = [
+            layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
+        ]
+
+    def run_raw(self, image: bytes) -&gt; float:
+        &#34;&#34;&#34;Run the animal filter on the image to give a confidence that the image frame contains an animal
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            float: Confidence in the output containing an animal as a decimal fraction
+        &#34;&#34;&#34;
+        decoded_image = cv2.resize(
+            cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
+        )
+
+        blob = cv2.dnn.blobFromImage(decoded_image, 1, (416, 416), (0, 0, 0))
+        blob = blob / 255  # Scale to be a float
+        self.model.setInput(blob)
+        output = self.model.forward(self.output_layers)
+
+        _, _, _, _, _, confidence0 = output[0].max(axis=0)
+        _, _, _, _, _, confidence1 = output[1].max(axis=0)
+        return max(confidence0, confidence1)
+
+    def run(self, image: bytes) -&gt; bool:
+        &#34;&#34;&#34;The same as `run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+
+        Args:
+            image (bytes): The image frame to be analysed in JPEG format
+
+        Returns:
+            bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
+        &#34;&#34;&#34;
+        return self.run_raw(image) &gt;= self.threshold</code></pre>
+</details>
 <h3>Methods</h3>
 <dl>
 <dt id="DynAIkonTrap.filtering.animal.AnimalFilter.run"><code class="name flex">
@@ -62,6 +200,21 @@
 <dt><code>bool</code></dt>
 <dd><code>True</code> if the confidence in animal presence is at least the threshold, otherwise <code>False</code></dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def run(self, image: bytes) -&gt; bool:
+    &#34;&#34;&#34;The same as `run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+
+    Args:
+        image (bytes): The image frame to be analysed in JPEG format
+
+    Returns:
+        bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
+    &#34;&#34;&#34;
+    return self.run_raw(image) &gt;= self.threshold</code></pre>
+</details>
 </dd>
 <dt id="DynAIkonTrap.filtering.animal.AnimalFilter.run_raw"><code class="name flex">
 <span>def <span class="ident">run_raw</span></span>(<span>self, image: bytes) ‑> float</span>
@@ -78,6 +231,32 @@
 <dt><code>float</code></dt>
 <dd>Confidence in the output containing an animal as a decimal fraction</dd>
 </dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def run_raw(self, image: bytes) -&gt; float:
+    &#34;&#34;&#34;Run the animal filter on the image to give a confidence that the image frame contains an animal
+
+    Args:
+        image (bytes): The image frame to be analysed in JPEG format
+
+    Returns:
+        float: Confidence in the output containing an animal as a decimal fraction
+    &#34;&#34;&#34;
+    decoded_image = cv2.resize(
+        cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
+    )
+
+    blob = cv2.dnn.blobFromImage(decoded_image, 1, (416, 416), (0, 0, 0))
+    blob = blob / 255  # Scale to be a float
+    self.model.setInput(blob)
+    output = self.model.forward(self.output_layers)
+
+    _, _, _, _, _, confidence0 = output[0].max(axis=0)
+    _, _, _, _, _, confidence1 = output[1].max(axis=0)
+    return max(confidence0, confidence1)</code></pre>
+</details>
 </dd>
 </dl>
 </dd>
@@ -110,7 +289,7 @@
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>

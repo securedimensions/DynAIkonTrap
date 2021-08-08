@@ -25,7 +25,8 @@
     "sensor": {
         "port": "/dev/ttyUSB0",
         "baud": 57600,
-        "interval_s": 30.0
+        "interval_s": 30.0,
+        "obfuscation_distance_km": 2
     },
     "output": {
         "path": "",
@@ -35,5 +36,6 @@
     },
     "logging": {
         "level": "INFO"
-    }
+    },
+    "version": "1.0.0"
 }
