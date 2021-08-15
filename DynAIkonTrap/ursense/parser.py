@@ -107,14 +107,14 @@ class UrSenseParser:
         )
 
     def parse(self, data: str) -> 'Union[Dict[str, sensor.Reading], Type[None]]':
-        """Parse the serial results output by a urSense 1.28 board as specified in the [user documentation v1.21](https://gitlab.dynaikon.com/dynaikontrap/urSense/-/raw/5390d8a6e14e6b6ba625061637ba8d1961a15d2d/ursense-user-manual-v1.pdf).
+        """Parse the serial results output by a urSense 1.28 board as specified in the `user documentation v1.21 <https://gitlab.dynaikon.com/dynaikontrap/urSense/-/raw/5390d8a6e14e6b6ba625061637ba8d1961a15d2d/ursense-user-manual-v1.pdf>`_.
 
-        The methodology is to start with a list of fields. Then process the first element of the list to figure out what type of reading it is and how many fields to consume. Format this appropriately and return it as a `Reading`. Repeat the process with the processed fields removed from the front of the list. Once the list reaches a length of zero, precessing the line is complete. For each `Reading` an attribute -- specified by the `ursense_map` -- of the final `SensorLog` is set.
+        The methodology is to start with a list of fields. Then process the first element of the list to figure out what type of reading it is and how many fields to consume. Format this appropriately and return it as a :class:`~Reading`. Repeat the process with the processed fields removed from the front of the list. Once the list reaches a length of zero, precessing the line is complete. For each :class:`~Reading` an attribute -- specified by the :data:`~DynAIkonTrap.ursense.structure.ursense_map` -- of the final :class:`~DynAIkonTrap.sensor.SensorLog` is set.
 
         Args:
             data (str): The serial data output from the urSense board
         Returns:
-            Union[SensorLog, Type[None]]: The current data as a `SensorLog` or `None` if the input could not be parsed.
+            Union[SensorLog, Type[None]]: The current data as a :class:`~DynAIkonTrap.sensor.SensorLog` or ``None`` if the input could not be parsed.
         """
 
         fields = data.strip().split(' ')

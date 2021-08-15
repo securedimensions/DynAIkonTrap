@@ -14,8 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-An interface for writing animal frames to disk or sending them to a server. The `AbstractOutput` combines a frame(s) with the most appropriate sensor log(s) and outputs these.
+An interface for writing animal frames to disk or sending them to a server. The ``AbstractOutput`` combines a frame(s) with the most appropriate sensor log(s) and outputs these.
 """
+from abc import ABCMeta, abstractmethod
 from multiprocessing import Process
 from typing import Dict, IO, Tuple, List, Union
 from tempfile import NamedTemporaryFile
@@ -139,37 +140,38 @@ class VideoCaption:
 
         The format is as follows:
 
-        ```json
-        [
-            {
-                "start": 0,
-                "end": 1,
-                "log": {
-                    "EXAMPLE_SENSOR_1": {
-                        "value": 0.0,
-                        "units": "x"
-                    },
-                    "EXAMPLE_SENSOR_2": {
-                        "value": 0.0,
-                        "units": "x"
-                    }
-                }
-            },
-            {
-                "start": 1,
-                "end": 5,
-                "logs": {}
-            }
-        ]
-        ```
+        .. code:: json
 
-        The `"start"` and `"end"` correspond to the frame numbers in which the sensor logs are valid. The frame numbers are inclusive. It is not guaranteed that all frames are covered by logs. There may also be also be overlaps between entries if the exact timestamp where a new set of sensor readings becomes valid occurs during a frame.
+           [
+               {
+                   "start": 0,
+                   "end": 1,
+                   "log": {
+                       "EXAMPLE_SENSOR_1": {
+                           "value": 0.0,
+                           "units": "x"
+                       },
+                       "EXAMPLE_SENSOR_2": {
+                           "value": 0.0,
+                           "units": "x"
+                       }
+                   }
+               },
+               {
+                   "start": 1,
+                   "end": 5,
+                   "logs": {}
+               }
+           ]
+
+
+        The ``"start"`` and ``"end"`` correspond to the frame numbers in which the sensor logs are valid. The frame numbers are inclusive. It is not guaranteed that all frames are covered by logs. There may also be also be overlaps between entries if the exact timestamp where a new set of sensor readings becomes valid occurs during a frame.
 
         Args:
             timestamps (List[float]): Timestamps for every frame in the motion/animal sequence
 
         Returns:
-            StringIO: The JSON captions wrapped in a `StringIO`, ready for writing to file
+            StringIO: The JSON captions wrapped in a :class:`StringIO`, ready for writing to file
         """
         captions = self._generate_captions_dict(timestamps)
         logger.debug(captions)
@@ -184,8 +186,8 @@ class VideoCaption:
         return StringIO(dumps(json_captions))
 
 
-class AbstractOutput:
-    """A base class to use for outputting captured images or videos. The `output_still()` and `output_video()` functions should be overridden with output method-specific implementations."""
+class AbstractOutput(metaclass=ABCMeta):
+    """A base class to use for outputting captured images or videos. The :func:`output_still` and :func:`output_video` functions should be overridden with output method-specific implementations."""
 
     def __init__(self, settings: OutputSettings, read_from: Tuple[Filter, SensorLogs]):
         self._frame_queue = read_from[0]
@@ -252,6 +254,7 @@ class AbstractOutput:
             writer.write(decoded_image)
             frame_timestamps.append(frame.timestamp)
 
+    @abstractmethod
     def output_still(self, image: bytes, time: float, sensor_log: SensorLog):
         """Output a still image with its sensor data. The sensor data can be provided via the keyword arguments.
 
@@ -259,24 +262,19 @@ class AbstractOutput:
             image (bytes): The JPEG image frame
             time (float): UNIX timestamp when the image was captured
             sensor_log (SensorLog): Log of sensor values at time frame was captured
-
-        Raises:
-            NotImplementedError: A subclass should implement this function for the specific use-case e.g. writing to disk.
         """
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
-        """Output a video with its meta-data. The sensor data is provided via the video captions (`caption`).
+        """Output a video with its meta-data. The sensor data is provided via the video captions (``caption``).
 
         Args:
             video (IO[bytes]): MP4 video (codec: H264 - MPEG-4 AVC (part 10))
-            caption (StringIO): Caption of sensor readings as produced by `VideoCaption.generate_sensor_json()`
+            caption (StringIO): Caption of sensor readings as produced by :func:`VideoCaption.generate_sensor_json()`
             time (float): UNIX timestamp when the image was captured
-
-        Raises:
-            NotImplementedError: A subclass should implement this function for the specific use-case e.g. writing to disk.
         """
-        raise NotImplementedError()
+        pass
 
 
 class Sender(AbstractOutput):
@@ -374,7 +372,7 @@ class Writer(AbstractOutput):
 def Output(
     settings: OutputSettings, read_from: Tuple[Filter, SensorLogs]
 ) -> Union[Sender, Writer]:
-    """Generator function to provide an implementation of the `AbstractOutput` based on the `DynAIkonTrap.settings.OutputMode` of the `settings` argument."""
+    """Generator function to provide an implementation of the :class:`~AbstractOutput` based on the :class:`~DynAIkonTrap.settings.OutputMode` of the ``settings`` argument."""
     if settings.output_mode == OutputMode.SEND:
         Sender(settings=settings, read_from=read_from)
     else:

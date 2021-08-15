@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block body -%}
+{% include "partials/icons.html" %}
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<div class="page" style="background: url({{ pathto('_static/kunal-shinde--f0YLss50Bs-unsplash.jpg', 1) }}) no-repeat center center fixed; background-size: cover;">
+  <main class="main">
+    <div class="content" style="margin: auto; width: 60%; background: rgba(255, 255, 255, 0.9);">
+    {% block content %}
+      <img src="{{ pathto('_static/' +  logo, 1) }}" alt="DynAIkonTrap Logo" style="padding-top:100px;padding-bottom:100px;width:30%;display:block;margin-left:auto;margin-right:auto;"><br>
+      <div style="text-align:center;">
+            <a href="{{ pathto('user-docs/quick-start') }}">Quick Start Guide</a> | 
+            <a href="{{ pathto('user-docs') }}">User Guide</a> | 
+            <a href="{{ pathto('dev-docs') }}">Developer Documentation</a>
+      </div>
+	  {% endblock %}
+      <footer>
+        {% block footer %}
+
+        <div class="related-information">
+          {%- if show_copyright %}
+            {%- if hasdoc('copyright') %}
+              {% trans path=pathto('copyright'), copyright=copyright|e -%}
+                <a href="{{ path }}">Copyright</a> &#169; {{ copyright }}.
+              {%- endtrans %}
+            {%- else %}
+              {% trans copyright=copyright|e -%}
+                Copyright &#169; {{ copyright }}
+              {%- endtrans %}
+            {%- endif %}
+          {%- endif %}
+          {%- if last_updated %}
+            |
+            {% trans last_updated=last_updated|e -%}
+              Last updated on {{ last_updated }}.
+            {%- endtrans %}
+          {%- endif %}
+          {%- if show_sphinx %}
+            |
+            {% trans -%}
+              Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
+              and
+              <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
+            {%- endtrans %}
+          {%- endif %}
+          {%- if show_source and has_source and sourcename %}
+            |
+            <a class="muted-link" href="{{ pathto('_sources/' + sourcename, true)|e }}"
+               rel="nofollow">
+              {{ _('Show Source') }}
+            </a>
+          {%- endif %}
+        </div>
+        {% endblock footer %}
+      </footer>
+    </div>
+  </main>
+</div>
+{%- endblock %}
+
