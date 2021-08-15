@@ -1,0 +1,29 @@
+image: python:latest
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+before_script:
+  - python -V
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - pip install --upgrade pip
+    # To allow building on non-RPi architecture
+  - export READTHEDOCS=True
+  - cd docs
+  - pip install -r requirements.txt && pip install -r ../requirements.txt
+
+run:
+  script:
+      # Currently in `docs` directory (from `before_script` above)
+    - make clean && make html
+    - rm -r /var/www/dynaikon.com-dynaikontrap-docs/*
+    - cp -r build/html/* /var/www/dynaikon.com-dynaikontrap-docs/
+  only:
+    - tags

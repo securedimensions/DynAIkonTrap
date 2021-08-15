@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-An interface to the sensor board. The logs from sensor readings are taken by the `SensorLogs` and can be accessed via the `SensorLogger.get()` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
+An interface to the sensor board. The logs from sensor readings are taken by the :class:`SensorLogs` and can be accessed via the :func:`SensorLogs.get` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
 """
 from typing import Dict, List, Tuple, Type, Union
 from typing import OrderedDict as OrderedDictType
@@ -44,7 +44,7 @@ class Reading:
 
 @dataclass
 class SensorLog:
-    """A log of sensor readings taken at a given moment in time. `system_time` is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by `None` in the log."""
+    """A log of sensor readings taken at a given moment in time. ``system_time`` is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by ``None`` in the log."""
 
     system_time: float
     readings: Dict[str, Reading]
@@ -65,7 +65,7 @@ class Sensor:
     def __init__(self, port: str, baud: int, obfuscation_distance_km: float):
         """
         Args:
-            port (str): The path to the port to which the sensor is attached, most likely `'/dev/ttyUSB0'`
+            port (str): The path to the port to which the sensor is attached, most likely ``'/dev/ttyUSB0'``
             baud (int): Baudrate to use in communication with the sensor board
             obfuscation_distance_km (float): Dimension of squares for quantising GPS location
         Raises:
@@ -198,7 +198,7 @@ class SensorLogs:
         return self._storage.get(key, None)
 
     def _remove_logs(self, timestamps: List[float]):
-        """Removes all logs with the given `timestamp` keys."""
+        """Removes all logs with the given ``timestamp`` keys."""
         for t in timestamps:
             del self._storage[t]
 
@@ -227,7 +227,7 @@ class SensorLogs:
             timestamp (float): Timestamp of the image for which sensor readings are to be retrieved
 
         Returns:
-            Union[SensorLog, None]: The retrieved log of sensor readings or `None` if none could be retrieved.
+            Union[SensorLog, None]: The retrieved log of sensor readings or ``None`` if none could be retrieved.
         """
 
         self._query_queue.put(timestamp)

@@ -1244,6 +1244,23 @@ ursense_map = {
         'description': 'quantised sun altitude [deg] in [-90, 90]',
     },
 }
+"""Table defining all possible fields in the sensor board output.
+
+The format is:
+
+.. code:: python
+
+   {
+       'field_name': {
+           'reading_type': 'XY',
+           'units': '',
+           'var_name': 'NAME_FOR_READING',
+           'description': '',
+       }
+   }
+
+The ``'field_name'`` is the name of the field as output by the sensor board. The ``'reading_type'`` dictates how to parse the reading according to :data:`reading_type_map`.
+"""
 
 
 @dataclass
@@ -1348,3 +1365,18 @@ reading_type_map: Dict[
         ),
     },
 }
+""" Table defining reading types and by what methodology the field in question is parsed.
+
+The format is:
+
+.. code:: python
+
+   {
+       'XY': {
+           'description': '',
+           'parser': parsing_function_for_XY,
+       }
+   }
+
+Where ``'XY'`` is the type of reading, e.g., ``'SI'``. The ``'parser'`` is the function that does the actual parsing.
+"""
