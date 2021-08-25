@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-This module provides access to a "motion queue", which is simply a queue for labelled consecutive sequences. The intended usage is to place frames of interest, labeled as determined by a motion filter, into the queue. The queue is ended when the maximum length is reached as determined by MotionQueueSettings.
+This module provides access to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`, which is simply a queue for labelled consecutive sequences. The intended usage is to place frames of interest, labelled as determined by a motion filter, into the queue. The queue is ended when the maximum length is reached as determined by :class:`~DynAIkonTrap.settings.MotionQueueSettings`.
 
-The sequence is then analysed by the animal filter, loaded into the `MotionLabelledQueue`, and a callback called with only the animal frames from the motion sequence. Within a `MotionSequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
+The sequence is then analysed by the animal filter, loaded into the :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`, and a callback called with only the animal frames from the motion sequence. Within a :class:`~DynAIkonTrap.filtering.motion_queue.Sequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
 
 Below is a simple outline example of how this can be used to print all animal frames:
 ```python
@@ -130,7 +130,7 @@ class Sequence:
 
 
     def label_as_animal(self, frame: LabelledFrame):
-        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current sequence will also be labelled as animal according to the `smoothing_len`
+        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current sequence will also be labelled as animal according to the ``smoothing_len``
 
         Args:
             frame (LabelledFrame): The frame to be labelled as containing an animal
@@ -149,7 +149,7 @@ class Sequence:
         self._label([frame], Label.EMPTY)
 
     def close_gaps(self):
-        """Remove small gaps of missing animal predictions in the current sequence. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
+        """Remove small gaps of missing animal predictions in the current sequence. This function removes unlikely gaps in animal detections using the ``smoothing_len``."""
         last_animal = None
         current_gap = 0
         for i, frame in enumerate(self._frames):
@@ -191,7 +191,7 @@ class Sequence:
         return highest_priority_frame
 
     def get_first_animal_index(self) -> int:
-        """Finds and returns first index in the frame queue labeled as an animal
+        """Finds and returns first index in the frame queue labelled as an animal
         
         Returns:
             Index (int) of first animal frame in this sequence.

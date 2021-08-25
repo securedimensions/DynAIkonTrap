@@ -16,7 +16,7 @@
 """
 A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the `Filter` reads from a `DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals.
 
-Internally frames are first analysed by the `DynAIkonTrap.filtering.motion.MotionFilter` frames, with motion score and label indicating motion, are added to a `DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the `DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
 
 The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
 """
