@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the `AnimalFilter` is a JPEG image and the output a confidence in the image containing an animal.
+This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the :class:`AnimalFilter` is a JPEG image and the output a confidence in the image containing an animal.
 
 A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.
 """
@@ -66,7 +66,7 @@ class AnimalFilter:
         return max(confidence0, confidence1)
 
     def run(self, image: bytes) -> bool:
-        """The same as `run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+        """The same as :func:`run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
 
         Args:
             image (bytes): The image frame to be analysed in JPEG format

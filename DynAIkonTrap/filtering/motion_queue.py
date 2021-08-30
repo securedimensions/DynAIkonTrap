@@ -19,8 +19,6 @@ This module provides access to a :class:`~DynAIkonTrap.filtering.motion_queue.Mo
 The sequence is then analysed by the animal filter, loaded into the :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`, and a callback called with only the animal frames from the motion sequence. Within a :class:`~DynAIkonTrap.filtering.motion_queue.Sequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
 
 Below is a simple outline example of how this can be used to print all animal frames:
-```python
-camera = Camera()
 
 mf = MotionFilter(...)
 

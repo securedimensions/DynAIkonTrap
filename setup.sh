@@ -91,7 +91,7 @@ fi
 
 ## Create a "launcher" script that can also be called via `nohup`
 echo "#! /bin/bash" >"$DIR/dynaikontrap.sh"
-echo '(cd "$DIR" && source "./venv/bin/activate" && python -m DynAIkonTrap $@)' >>"$DIR/dynaikontrap.sh"
+echo '(cd "'$DIR'" && source "./venv/bin/activate" && python -m DynAIkonTrap $@)' >>"$DIR/dynaikontrap.sh"
 chmod +x "$DIR/dynaikontrap.sh"
 
 ## Place the script in /usr/local/bin/ so it be called from everywhere
