@@ -11,7 +11,7 @@
 
 
 ### Changed
-- `MotionSequene` class is now called `Sequence`
+- `MotionSequence` class is now called `Sequence`
 - `MotionQueue` class is now called `MotionLabelledQueue` 
 ---
 
