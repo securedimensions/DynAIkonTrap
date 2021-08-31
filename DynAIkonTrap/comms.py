@@ -36,6 +36,7 @@ from DynAIkonTrap.filtering import Filter
 from DynAIkonTrap.sensor import SensorLog, SensorLogs, Reading
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import (
+    OutputVideoCodec,
     OutputMode,
     SenderSettings,
     OutputFormat,
@@ -72,14 +73,14 @@ class VideoCaption:
             caption = captions.get(
                 key,
                 {
-                    'start': frame_number,
-                    'stop': frame_number,
-                    'log': log,
+                    "start": frame_number,
+                    "stop": frame_number,
+                    "log": log,
                 },
             )
 
             # Extend caption duration for a subsequent frame using the same log
-            caption['stop'] += 1
+            caption["stop"] += 1
 
             captions.update({key: caption})
         return captions
@@ -88,38 +89,38 @@ class VideoCaption:
         ss = int(video_time % 60)
         ttt = (video_time % 60 - ss) * 1000
         mm = video_time // 60
-        return '{:02.0f}:{:02.0f}.{:03.0f}'.format(mm, ss, ttt)
+        return "{:02.0f}:{:02.0f}.{:03.0f}".format(mm, ss, ttt)
 
     def _reading_to_str(self, reading: Reading) -> str:
         if reading is None:
-            return '?'
-        return '{x.value}{x.units}'.format(x=reading)
+            return "?"
+        return "{x.value}{x.units}".format(x=reading)
 
     def _captions_dict_to_vtt(self, captions: Dict, framerate: float) -> str:
-        vtt = 'WEBVTT \n'
-        vtt += '\n'
+        vtt = "WEBVTT \n"
+        vtt += "\n"
 
         for key, caption in sorted(captions.items()):
-            log: SensorLog = caption['log']
+            log: SensorLog = caption["log"]
             if log is None:
                 continue
 
-            start_time = caption['start'] / framerate
-            stop_time = caption['stop'] / framerate
+            start_time = caption["start"] / framerate
+            stop_time = caption["stop"] / framerate
 
-            vtt += '{} --> {} - Sensor@{}\n'.format(
+            vtt += "{} --> {} - Sensor@{}\n".format(
                 self._video_time_to_str(start_time),
                 self._video_time_to_str(stop_time),
-                '{:%H:%M:%S}'.format(
+                "{:%H:%M:%S}".format(
                     datetime.fromtimestamp(log.system_time, timezone.utc)
                 ),
             )
 
-            vtt += 'T: {} - RH: {} - L: {} - P: {}\n\n'.format(
-                self._reading_to_str(log.readings.get('SKEW_TEMPERATURE')),
-                self._reading_to_str(log.readings.get('HUMIDITY')),
-                self._reading_to_str(log.readings.get('BRIGHTNESS')),
-                self._reading_to_str(log.readings.get('ATMOSPHERIC_PRESSURE')),
+            vtt += "T: {} - RH: {} - L: {} - P: {}\n\n".format(
+                self._reading_to_str(log.readings.get("SKEW_TEMPERATURE")),
+                self._reading_to_str(log.readings.get("HUMIDITY")),
+                self._reading_to_str(log.readings.get("BRIGHTNESS")),
+                self._reading_to_str(log.readings.get("ATMOSPHERIC_PRESSURE")),
             )
         return vtt
 
@@ -178,10 +179,10 @@ class VideoCaption:
 
         json_captions = []
         for c in captions.values():
-            log = c['log']
+            log = c["log"]
             if log != None:
                 json_captions.append(
-                    {'start': c['start'], 'end': c['stop'], 'log': log.serialise()}
+                    {"start": c["start"], "end": c["stop"], "log": log.serialise()}
                 )
         return StringIO(dumps(json_captions))
 
@@ -193,6 +194,17 @@ class AbstractOutput(metaclass=ABCMeta):
         self._frame_queue = read_from[0]
         self._sensor_logs = read_from[1]
         self.framerate = self._frame_queue.framerate
+        self._video_codec = settings.output_codec.name
+        if settings.output_codec == OutputVideoCodec.H264:
+            self._video_suffix = ".mp4"
+        elif settings.output_codec == OutputVideoCodec.PIM1:
+            self._video_suffix = ".avi"
+        else:
+            logger.error(
+                "Invalid video codec (codec: {}); cannot form output suffix".format(
+                    settings.output_codec.name
+                )
+            )
 
         if settings.output_format == OutputFormat.VIDEO:
             self._reader = Process(target=self._read_frames_to_video, daemon=True)
@@ -212,7 +224,7 @@ class AbstractOutput(metaclass=ABCMeta):
 
             log = self._sensor_logs.get(frame.timestamp)
             if log is None:
-                logger.warning('No sensor readings')
+                logger.warning("No sensor readings")
                 self.output_still(image=frame.image, time=frame.timestamp)
             else:
                 self.output_still(
@@ -242,11 +254,12 @@ class AbstractOutput(metaclass=ABCMeta):
                 start_new = False
                 start_time = frame.timestamp
                 frame_timestamps = []
-                file = NamedTemporaryFile(suffix='.mp4')
+
+                file = NamedTemporaryFile(suffix=self._video_suffix)
 
                 writer = cv2.VideoWriter(
                     file.name,
-                    cv2.VideoWriter_fourcc(*'avc1'),
+                    cv2.VideoWriter_fourcc(*self._video_codec),
                     self.framerate,
                     (decoded_image.shape[1], decoded_image.shape[0]),
                 )
@@ -286,35 +299,35 @@ class Sender(AbstractOutput):
         self._path_POST = settings.POST
         super().__init__(settings, read_from)
 
-        logger.debug('Sender started (format: {})'.format(settings.output_format))
+        logger.debug("Sender started (format: {})".format(settings.output_format))
 
     def output_still(self, image: bytes, time: float, sensor_log: SensorLog):
 
-        files_dict = {'file': ('image', image, 'image/jpeg')}
-        logger.debug('Sending capture, meta = {}'.format(sensor_log))
+        files_dict = {"file": ("image", image, "image/jpeg")}
+        logger.debug("Sending capture, meta = {}".format(sensor_log))
         try:
             r = post(self._server + self._path_POST, data=sensor_log, files=files_dict)
             r.raise_for_status()
-            logger.info('Image sent')
+            logger.info("Image sent")
         except HTTPError as e:
             logger.error(e)
         except ConnectionError as e:
-            logger.error('Connection to server failed; could not send data')
+            logger.error("Connection to server failed; could not send data")
 
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
-        meta = {'trap_id': self._device_id, 'time': time}
+        meta = {"trap_id": self._device_id, "time": time}
         files_dict = {
-            'video': ('video', video, 'video/mp4'),
-            'caption': ('caption', caption, 'text/vtt'),
+            "video": ("video", video, "video/mp4"),
+            "caption": ("caption", caption, "text/vtt"),
         }
         try:
             r = post(self._server + self._path_POST, data=meta, files=files_dict)
             r.raise_for_status()
-            logger.info('Video sent')
+            logger.info("Video sent")
         except HTTPError as e:
             logger.error(e)
         except ConnectionError as e:
-            logger.error('Connection to server failed; could not send data')
+            logger.error("Connection to server failed; could not send data")
 
 
 class Writer(AbstractOutput):
@@ -323,26 +336,25 @@ class Writer(AbstractOutput):
         path = Path(settings.path).expanduser()
         path.mkdir(parents=True, exist_ok=True)
         self._path = path.resolve()
-
         super().__init__(settings, read_from)
-        logger.debug('Writer started (format: {})'.format(settings.output_format))
+        logger.debug("Writer started (format: {})".format(settings.output_format))
 
     def _unique_name(self, capture_time: float) -> str:
 
         # Get all filenames and remove extensions
-        names = map(lambda x: x[0], map(lambda x: x.split('.'), listdir(self._path)))
+        names = map(lambda x: x[0], map(lambda x: x.split("."), listdir(self._path)))
 
         # Base the new file's name on the capture time
-        name = '{:%Y-%m-%d_%H-%M-%S-%f}'.format(
+        name = "{:%Y-%m-%d_%H-%M-%S-%f}".format(
             datetime.fromtimestamp(capture_time, timezone.utc)
         )
         counter = 0
 
         # If the name is already taken try adding a number
-        while '{}_{}'.format(name, counter) in list(names):
+        while "{}_{}".format(name, counter) in list(names):
             counter += 1
 
-        name = '{}_{}'.format(name, counter)
+        name = "{}_{}".format(name, counter)
 
         return join(self._path, name)
 
@@ -350,23 +362,23 @@ class Writer(AbstractOutput):
 
         name = self._unique_name(time)
 
-        with open(name + '.jpg', 'wb') as f:
+        with open(name + ".jpg", "wb") as f:
             f.write(image)
 
-        with open(name + '.json', 'w') as f:
+        with open(name + ".json", "w") as f:
             dump(sensor_log.serialise(), f)
-        logger.info('Image and meta-data saved')
+        logger.info("Image and meta-data saved")
 
     def output_video(self, video: IO[bytes], caption: StringIO, time: float, **kwargs):
         name = self._unique_name(time)
 
-        with open(name + '.mp4', 'wb') as f:
+        with open(name + self._video_suffix, "wb") as f:
             f.write(video.read())
 
-        with open(name + '.json', 'w') as f:
+        with open(name + ".json", "w") as f:
             f.write(caption.getvalue())
 
-        logger.info('Video and caption saved')
+        logger.info("Video and caption saved")
 
 
 def Output(

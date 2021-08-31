@@ -29,7 +29,7 @@ from typing import Tuple
 try:
     from picamera import PiCamera
     from picamera.array import PiMotionAnalysis
-except OSError:
+except (OSError, ModuleNotFoundError):
     # Ignore error that occurs when running pdoc3
     class PiMotionAnalysis:
         pass
