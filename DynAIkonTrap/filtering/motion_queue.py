@@ -16,34 +16,35 @@
 """
 This module provides access to a "motion queue", which is simply a queue for sequences of consecutive motion. The intended usage is to place frames of motion, as determined by a motion filter, into the queue. When a frame of no motion arrives, this is not added to the queue and the motion sequence is ended.
 
-The sequence is then analysed by the animal filter, loaded into the `MotionQueue`, and a callback called with only the animal frames from the motion sequence. Within a `MotionSequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
+The sequence is then analysed by the animal filter, loaded into the :class:`MotionQueue`, and a callback called with only the animal frames from the motion sequence. Within a :class:`MotionSequence` there is some simplistic "smoothing" of animal detections. This means even animal detectors that provide sporadic outputs in time, are transformed to a smooth system output.
 
 Below is a simple outline example of how this can be used to print all animal frames:
-```python
-camera = Camera()
 
-mf = MotionFilter(...)
+.. code:: py
 
-mq = MotionQueue(
-    AnimalFilter(...), 
-    print, 
-    MotionQueueSettings(), 
-    camera.framerate,
-    )
-
-while True:
-
-    frame = camera.get() # Can raise Empty exception
-
-    motion_score = mf.run_raw(frame.motion)
-    motion_detected = motion_score >= motion_threshold
-
-    if motion_detected:
-        mq.put(frame, motion_score)
-    else:
-        # Safe to call repeatedly; will only end non-empty motion sequence
-        mq.end_motion_sequence()
-```
+   camera = Camera()
+   
+   mf = MotionFilter(...)
+   
+   mq = MotionQueue(
+       AnimalFilter(...), 
+       print, 
+       MotionQueueSettings(), 
+       camera.framerate,
+       )
+   
+   while True:
+   
+       frame = camera.get() # Can raise Empty exception
+   
+       motion_score = mf.run_raw(frame.motion)
+       motion_detected = motion_score >= motion_threshold
+   
+       if motion_detected:
+           mq.put(frame, motion_score)
+       else:
+           # Safe to call repeatedly; will only end non-empty motion    sequence
+           mq.end_motion_sequence()
 
 The modularity here means Different implementations for animal filtering and motion filtering stages can be used.
 """
@@ -107,7 +108,7 @@ class MotionSequence:
             self.labelled = True
 
     def label_as_animal(self, frame: LabelledFrame):
-        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the `smoothing_len`
+        """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current motion sequence will also be labelled as animal according to the ``smoothing_len``
 
         Args:
             frame (LabelledFrame): The frame to be labelled as containing an animal
@@ -126,7 +127,7 @@ class MotionSequence:
         self._label([frame], Label.EMPTY)
 
     def close_gaps(self):
-        """Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the `smoothing_len`."""
+        """Remove small gaps of missing animal predictions in the current motion sequence. This should only be called just before the motion sequence is passed out of the motion queue. This function removes unlikely gaps in animal detections using the ``smoothing_len``."""
         last_animal = None
         current_gap = 0
         for i, frame in enumerate(self._frames):

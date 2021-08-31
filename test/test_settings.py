@@ -20,6 +20,7 @@ from json import dump
 from DynAIkonTrap.settings import (
     LoggerSettings,
     OutputMode,
+    _version_number,
     load_settings,
     Settings,
     CameraSettings,
@@ -103,7 +104,12 @@ class SettingsDoesExistTestCase(TestCase):
                     "max_sequence_period_s": -11,
                 },
             },
-            "sensor": {"port": -12, "baud": -13, "interval_s": -14},
+            "sensor": {
+                "port": -12,
+                "baud": -13,
+                "interval_s": -14,
+                "obfuscation_distance_km": -1,
+            },
             "output": {
                 "output_mode": 1,
                 "server": -15,
@@ -112,6 +118,7 @@ class SettingsDoesExistTestCase(TestCase):
                 "output_format": 0,
             },
             "logging": {"level": "DEBUG"},
+            "version": _version_number(),
         }
         self._settings = Settings(
             CameraSettings(-1, [-2, -3]),
@@ -120,7 +127,7 @@ class SettingsDoesExistTestCase(TestCase):
                 AnimalFilterSettings(-9),
                 MotionQueueSettings(-10, -11),
             ),
-            SensorSettings(-12, -13, -14),
+            SensorSettings(-12, -13, -14, -1),
             SenderSettings(-17, OutputFormat(0), OutputMode(1), -15, -16),
             LoggerSettings('DEBUG'),
         )

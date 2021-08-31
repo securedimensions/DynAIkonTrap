@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-An interface to the sensor board. The logs from sensor readings are taken by the `SensorLogs` and can be accessed via the `SensorLogger.get()` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
+An interface to the sensor board. The logs from sensor readings are taken by the :class:`SensorLogs` and can be accessed via the :func:`SensorLogs.get` function, by timestamp. The intended usage is to retrieve a sensor log taken at a similar time to a frame.
 """
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Type, Union
 from typing import OrderedDict as OrderedDictType
 from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
@@ -28,6 +28,8 @@ from signal import signal, setitimer, ITIMER_REAL, SIGALRM
 
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import SensorSettings
+import DynAIkonTrap.ursense.parser as up
+
 
 logger = get_logger(__name__)
 
@@ -37,28 +39,35 @@ class Reading:
     """Representation of a sensor reading, which has a value and units of measurement"""
 
     value: float
-    units: str
+    units: 'Union[str, Type[None]]' = None
 
 
 @dataclass
 class SensorLog:
-    """A log of sensor readings taken at a given moment in time. Time is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by `None` in the log."""
+    """A log of sensor readings taken at a given moment in time. ``system_time`` is represented as a UNIX-style timestamp. If a reading could not be taken for any of the attached sensors, the sensor may be represented by ``None`` in the log."""
 
-    timestamp: float
-    brightness: 'Union[Reading, type(None)]'
-    humidity: 'Union[Reading, type(None)]'
-    pressure: 'Union[Reading, type(None)]'
-    temperature: 'type(None)' = None  # Not yet supported by the sensor
+    system_time: float
+    readings: Dict[str, Reading]
+
+    def serialise(self):
+        serialised = {'system_time': {"value": self.system_time, "units": "s"}}
+        for k, v in self.readings.items():
+            if isinstance(v, Reading):
+                serialised[k] = v.__dict__
+            else:
+                serialised[k] = v
+        return serialised
 
 
 class Sensor:
     """Provides an interface to the weather sensor board"""
 
-    def __init__(self, port: str, baud: int):
+    def __init__(self, port: str, baud: int, obfuscation_distance_km: float):
         """
         Args:
-            port (str): The path to the port to which the sensor is attached, most likely `'/dev/ttyUSB0'`
+            port (str): The path to the port to which the sensor is attached, most likely ``'/dev/ttyUSB0'``
             baud (int): Baudrate to use in communication with the sensor board
+            obfuscation_distance_km (float): Dimension of squares for quantising GPS location
         Raises:
             SerialException: If the sensor board could not be found
         """
@@ -69,30 +78,30 @@ class Sensor:
             self._ser = None
             raise
 
-        self._brightness = None
-        self._humidity = None
-        self._pressure = None
+        self._parser = up.UrSenseParser(obfuscation_distance_km)
 
-    def _retrieve_latest_data(self):
+    def _retrieve_latest_data(self) -> Union[SensorLog, Type[None]]:
 
         data = None
+        system_time = time()
 
         if not self._ser:
-            return
+            return None
 
+        # urSense takes `e` to trigger newest reading
+        self._ser.write(b'e')
         while self._ser.in_waiting:
             data = self._ser.readline()
 
         if not data:
-            return
+            return None
 
-        split_raw_data = str(data).split(' ')
-        if len(split_raw_data) != 40:
-            return
+        sensor_log = self._parser.parse(data.decode('utf-8'))
+        if sensor_log == None:
+            return None
+        sensor_log = SensorLog(system_time, sensor_log)
 
-        self._brightness = Reading(float(split_raw_data[16][:-1]), '%')
-        self._humidity = Reading(float(split_raw_data[18][:-1]), 'RH%')
-        self._pressure = Reading(float(split_raw_data[20]), 'mbar')
+        return sensor_log
 
     def read(self) -> SensorLog:
         """Triggers the taking and logging of sensor readings
@@ -100,8 +109,10 @@ class Sensor:
         Returns:
             SensorLog: Readings for all sensors
         """
-        self._retrieve_latest_data()
-        return SensorLog(time(), self._brightness, self._humidity, self._pressure)
+        latest = self._retrieve_latest_data()
+        if latest == None:
+            return SensorLog(system_time=time(), readings={})
+        return latest
 
 
 class SensorLogs:
@@ -119,7 +130,9 @@ class SensorLogs:
         self._results_queue: QueueType[SensorLog] = Queue()
 
         try:
-            self._sensor = Sensor(settings.port, settings.baud)
+            self._sensor = Sensor(
+                settings.port, settings.baud, settings.obfuscation_distance_km
+            )
         except SerialException:
             self._sensor = None
 
@@ -139,7 +152,7 @@ class SensorLogs:
             return
         sensor_log = self._sensor.read()
         logger.debug(sensor_log)
-        self._storage[sensor_log.timestamp] = sensor_log
+        self._storage[sensor_log.system_time] = sensor_log
 
     def _find_closest_key(
         self, sorted_keys: List[float], ts: float, index: int = 0
@@ -185,7 +198,7 @@ class SensorLogs:
         return self._storage.get(key, None)
 
     def _remove_logs(self, timestamps: List[float]):
-        """Removes all logs with the given `timestamp` keys."""
+        """Removes all logs with the given ``timestamp`` keys."""
         for t in timestamps:
             del self._storage[t]
 
@@ -205,7 +218,7 @@ class SensorLogs:
             query = self._query_queue.get()
             self._results_queue.put_nowait(self._lookup(query))
 
-    def get(self, timestamp: float) -> Union[SensorLog, type(None)]:
+    def get(self, timestamp: float) -> Union[SensorLog, Type[None]]:
         """Get the log closest to the given timestamp and return it.
 
         Also deletes logs older than this timestamp.
@@ -214,7 +227,7 @@ class SensorLogs:
             timestamp (float): Timestamp of the image for which sensor readings are to be retrieved
 
         Returns:
-            Union[SensorLog, None]: The retrieved log of sensor readings or `None` if none could be retrieved.
+            Union[SensorLog, None]: The retrieved log of sensor readings or ``None`` if none could be retrieved.
         """
 
         self._query_queue.put(timestamp)
