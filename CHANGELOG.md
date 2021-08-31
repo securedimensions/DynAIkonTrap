@@ -3,9 +3,11 @@
 ## [v1.1.0] - 2021-08-15
 ### Added
 - Check for `settings.json` version vs. DynAIkonTrap version in case settings are copied from one trap to another
+- Added support for multiple output video codecs and settings to choose between them.
 
 ### Fixed
 - Implementation of UrSense interface following updated documentation
+- Catches pycamera `ModuleNotFoundError` when running the camera trap with emulated input on desktop
 
 ### Changed
 - Video sensor logs to JSON for easier machine reading -- parsing this back to the previous VTT output is trivial
