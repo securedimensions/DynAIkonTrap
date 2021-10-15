@@ -77,7 +77,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self,
         camera: PiCamera,
         settings: MotionFilterSettings,
-        buff_len: int,
+        seconds: float,
         divisor: int,
     ) -> None:
         width, height = camera.resolution
@@ -87,6 +87,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         element_size = sizeof(float) + sizeof(float)(
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
+        buff_len = seconds * camera.framerate
         self._active_stream = CircularIO(element_size * buff_len)
         self._inactive_stream = CircularIO(element_size * buff_len)
 
@@ -204,20 +205,20 @@ class VideoRAMBuffer:
         pass
 
 
-class Synchroniser:
-    def __init__(self, output: QueueType):
-        self._last_image = None
-        self._output = output
+# class Synchroniser:
+#     def __init__(self, output: QueueType):
+#         self._last_image = None
+#         self._output = output
 
-    def tick_movement_frame(self, motion):
-        if self._last_image is not None:
-            image = np.asarray(bytearray(self._last_image), dtype="uint8")
-        else:
-            return
-        self._output.put_nowait(Frame(image, motion, time()))
+#     def tick_movement_frame(self, motion):
+#         if self._last_image is not None:
+#             image = np.asarray(bytearray(self._last_image), dtype="uint8")
+#         else:
+#             return
+#         self._output.put_nowait(Frame(image, motion, time()))
 
-    def tick_image_frame(self, image):
-        self._last_image = image
+#     def tick_image_frame(self, image):
+#         self._last_image = image
 
 
 class DirectoryFactory:
@@ -245,7 +246,7 @@ class CameraToDisk:
     """Wraps picamera functionality to stream motion events to disk."""
 
     def __init__(
-        self, camera_settings: CameraSettings, writer_settings: WriterSettings
+        self, camera_settings: CameraSettings, writer_settings: WriterSettings, motion_filter_settings: MotionFilterSettings
     ):
         """Takes a :class:`~DynAIkonTrap.settings.CameraSettings` object to initialise and start the camera hardware.
 
@@ -253,11 +254,33 @@ class CameraToDisk:
             camera_settings (CameraSettings): settings object for camera construction
             writer_settings (WriterSettings): settings object for writing out events
         """
-        self.resolution = camera_settings.resolution
-        self.framerate = camera_settings.framerate
+        self._bitrate_bps = 10e6
+        self._buffer_secs = 10
+        self._raw_frame_wdt = 416
+        self._raw_frame_hgt = 416
+        self._raw_divisor = 5  # these concrete settings will go later.
+        self._resolution = camera_settings.resolution
+        self._framerate = camera_settings.framerate
         self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
         sleep(2)  # Camera warmup
 
         self._output: QueueType[EventData] = Queue()
-        self._synchroniser = Synchroniser(self._output)
+        self._h264_buffer: VideoRAMBuffer = VideoRAMBuffer(
+            self._camera,
+            splitter_port=0,
+            size=(self._bitrate_bps * self._buffer_secs) // 8,
+        )
+        self._raw_buffer: VideoRAMBuffer = VideoRAMBuffer(
+            self._camera,
+            splitter_port=1,
+            size=(self._raw_frame_wdt * self._raw_frame_hgt * 4) // self._raw_divisor,
+        )
+
+        self._motion_buffer: MotionRAMBuffer = MotionRAMBuffer(self._camera, motion_filter_settings, self._buffer_secs)
+    
+        # self._synchroniser = Synchroniser(self._output)
         self._directory_factory = DirectoryFactory(writer_settings.path)
+
+    def record(self):
+        self._camera.start_recording(self._h264_buffer, format='h264', splitter_port=0, motion_output=self._motion_buffer, bitrate = self._bitrate_bps)
+        self._camera.start_recording()
