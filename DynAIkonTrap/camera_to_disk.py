@@ -45,7 +45,7 @@ except (OSError, ModuleNotFoundError):
 
 
 from DynAIkonTrap.filtering.motion import MotionFilter
-from DynAIkonTrap.settings import CameraSettings, FilterSettings, WriterSettings
+from DynAIkonTrap.settings import CameraSettings, FilterSettings, WriterSettings, MotionFilterSettings
 from DynAIkonTrap.logging import get_logger
 
 logger = get_logger(__name__)
@@ -129,6 +129,13 @@ class MotionRAMBuffer(PiMotionAnalysis):
                 self._active_stream.write(motion_bytes)
             except Empty:
                 pass
+    
+    def compute_used_space(self) -> float:
+        """computes the fraction of the active ring buffer filled up thus far
+
+        Returns:
+            float: fraction representing full space in ring buffer
+        """
 
     def write_inactive_buffer(self, filename: Path):
         """write the inactive buffer to file
@@ -296,13 +303,22 @@ class CameraToDisk:
                 self._camera.wait_recording(self._minimum_event_length_s/2.0)
                 
                 if randint(0, 5) == 1: #motion is detected!
+                    print("motion detected")
                     event_len_s = float(randint(0, self._maximum_event_length_s))
                     self._camera.wait_recording(self._minimum_event_length_s/2.0)
                     motion_start_time = time() - self._minimum_event_length_s/2
 
                     while time() - motion_start_time < event_len_s:
                         if self._h264_buffer.compute_used_space() > 0.75:
+                            #switch all streams
                             self._h264_buffer.switch_stream()
                             self._h264_buffer.write_inactive_stream()
+                            self._raw_buffer.switch_stream()
+                            self._raw_buffer.write_inactive_stream()
+                            self._motion_buffer.switch_stream()
+                            self._motion_buffer.write_inactive_buffer()
+                            print("streams switched")
+                    print("motion event concluded")
+                    
         except:
             pass
