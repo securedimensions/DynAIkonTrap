@@ -18,7 +18,7 @@ Provides a simplified interface to the :class:`PiCamera` library class. The :cla
 
 A :class:`Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
 """
-from ctypes import sizeof
+from ctypes import resize, sizeof
 from math import ceil
 from os import write
 from io import open
@@ -31,6 +31,7 @@ from multiprocessing import Event, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from typing import Tuple
+from random import randint
 from DynAIkonTrap.filtering import motion
 
 try:
@@ -44,7 +45,7 @@ except (OSError, ModuleNotFoundError):
 
 
 from DynAIkonTrap.filtering.motion import MotionFilter
-from DynAIkonTrap.settings import CameraSettings, MotionFilterSettings, WriterSettings
+from DynAIkonTrap.settings import CameraSettings, FilterSettings, WriterSettings
 from DynAIkonTrap.logging import get_logger
 
 logger = get_logger(__name__)
@@ -246,7 +247,7 @@ class CameraToDisk:
     """Wraps picamera functionality to stream motion events to disk."""
 
     def __init__(
-        self, camera_settings: CameraSettings, writer_settings: WriterSettings, motion_filter_settings: MotionFilterSettings
+        self, camera_settings: CameraSettings, writer_settings: WriterSettings, filter_settings: FilterSettings
     ):
         """Takes a :class:`~DynAIkonTrap.settings.CameraSettings` object to initialise and start the camera hardware.
 
@@ -262,6 +263,9 @@ class CameraToDisk:
         self._resolution = camera_settings.resolution
         self._framerate = camera_settings.framerate
         self._camera = PiCamera(resolution=self.resolution, framerate=self.framerate)
+        self._on = True
+        self._minimum_event_length_s: float = filter_settings.motion_queue.context_length_s
+        self._maximum_event_length_s: float = filter_settings.motion_queue.max_sequence_period_s
         sleep(2)  # Camera warmup
 
         self._output: QueueType[EventData] = Queue()
@@ -276,11 +280,29 @@ class CameraToDisk:
             size=(self._raw_frame_wdt * self._raw_frame_hgt * 4) // self._raw_divisor,
         )
 
-        self._motion_buffer: MotionRAMBuffer = MotionRAMBuffer(self._camera, motion_filter_settings, self._buffer_secs)
+        self._motion_buffer: MotionRAMBuffer = MotionRAMBuffer(self._camera, filter_settings.motion, self._buffer_secs)
     
         # self._synchroniser = Synchroniser(self._output)
         self._directory_factory = DirectoryFactory(writer_settings.path)
 
     def record(self):
         self._camera.start_recording(self._h264_buffer, format='h264', splitter_port=0, motion_output=self._motion_buffer, bitrate = self._bitrate_bps)
-        self._camera.start_recording()
+        self._camera.start_recording(self._raw_buffer, format='rgba', splitter_port=1, resize=(self._raw_frame_hgt, self._raw_frame_wdt))
+        self._camera.wait_recording(5) #camera warm-up
+        
+        event_path, event_name  = self._directory_factory.new_event()
+        try:
+            while self._on:
+                self._camera.wait_recording(self._minimum_event_length_s/2.0)
+                
+                if randint(0, 5) == 1: #motion is detected!
+                    event_len_s = float(randint(0, self._maximum_event_length_s))
+                    self._camera.wait_recording(self._minimum_event_length_s/2.0)
+                    motion_start_time = time() - self._minimum_event_length_s/2
+
+                    while time() - motion_start_time < event_len_s:
+                        if self._h264_buffer.compute_used_space() > 0.75:
+                            self._h264_buffer.switch_stream()
+                            self._h264_buffer.write_inactive_stream()
+        except:
+            pass
