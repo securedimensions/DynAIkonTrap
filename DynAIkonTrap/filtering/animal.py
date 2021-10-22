@@ -18,11 +18,20 @@ This module provides a generic interface to an animal detector. The system is fa
 
 A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.
 """
+from dataclasses import dataclass
+from enum import Enum
 import cv2
 import numpy as np
+from PIL import Image
 
 from DynAIkonTrap.settings import AnimalFilterSettings
 
+@dataclass
+class ImageFormat(Enum):
+    RGBA = 0
+    RGB = 1
+    JPEG = 2
+    
 
 class AnimalFilter:
     """Animal filter stage to indicate if a frame contains an animal
@@ -43,7 +52,7 @@ class AnimalFilter:
             layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
         ]
 
-    def run_raw(self, image: bytes) -> float:
+    def run_raw(self, image: bytes, format=ImageFormat.JPEG) -> float:
         """Run the animal filter on the image to give a confidence that the image frame contains an animal
 
         Args:
@@ -52,9 +61,16 @@ class AnimalFilter:
         Returns:
             float: Confidence in the output containing an animal as a decimal fraction
         """
-        decoded_image = cv2.resize(
-            cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
-        )
+        decoded_image = []
+        if format is ImageFormat.JPEG:
+            decoded_image = cv2.resize(
+                cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
+            )
+        elif format is ImageFormat.RGBA:
+            decoded_image = np.asarray(Image.frombytes('RGBA', (416,416), image, 'raw', 'RGBA'))
+            decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2RGB)
+        elif format is ImageFormat.RGB:
+            decoded_image = np.asarray(Image.frombytes('RGB', (416,416), image, 'raw', 'RGB'))
 
         blob = cv2.dnn.blobFromImage(decoded_image, 1, (416, 416), (0, 0, 0))
         blob = blob / 255  # Scale to be a float
@@ -65,7 +81,7 @@ class AnimalFilter:
         _, _, _, _, _, confidence1 = output[1].max(axis=0)
         return max(confidence0, confidence1)
 
-    def run(self, image: bytes) -> bool:
+    def run(self, image: bytes, format=ImageFormat.JPEG) -> bool:
         """The same as :func:`run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
 
         Args:
@@ -74,4 +90,4 @@ class AnimalFilter:
         Returns:
             bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
         """
-        return self.run_raw(image) >= self.threshold
+        return self.run_raw(image, format) >= self.threshold
