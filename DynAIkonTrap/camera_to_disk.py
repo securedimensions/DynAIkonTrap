@@ -62,12 +62,6 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class EventDir:
-    """Data for a saved motion event on disk."""
-    path: Path
-
-
-@dataclass
 class MotionData:
     """Data class for holding a motion frame"""
 
@@ -308,7 +302,7 @@ class CameraToDisk:
             filter_settings.motion_queue.max_sequence_period_s
         )
 
-        self._output: QueueType[EventDir] = Queue()
+        self._output_queue: QueueType[str] = Queue()
         self._h264_buffer: VideoRAMBuffer = VideoRAMBuffer(
             self._camera,
             splitter_port=1,
@@ -354,7 +348,7 @@ class CameraToDisk:
                 self._camera.wait_recording(1)
 
                 if 1 == 1:  # motion is detected!
-                    event = EventDir(current_path)
+                    event_dir = current_path
                     motion_start_time = time() - self._minimum_event_length_s / 2
                     self.empty_all_buffers(current_path, start=True)
                     last_buffer_empty_t = time()
@@ -371,10 +365,19 @@ class CameraToDisk:
 
                     # empty buffers
                     self.empty_all_buffers(current_path, start=False)
-                    self._output.put(event)
+                    self._output_queue.put(event_dir)
+                    
                     current_path = self._directory_maker.get_event()[0]
         finally:
             self._camera.stop_recording()
+
+    def get(self) -> str:
+        try:
+            return self._output_queue.get()
+
+        except Empty:
+            logger.error('No events available from Camera')
+            raise Empty
 
     def empty_all_buffers(self, current_path: Path, start:bool):
         self.empty_h264_buffer(current_path, start)

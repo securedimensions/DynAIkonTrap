@@ -1,0 +1,121 @@
+# DynAIkonTrap is an AI-infused camera trapping software package.
+# Copyright (C) 2020 Miklas Riechmann
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the :class:`Filter` reads from a :class:`~DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals.
+
+Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+
+The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
+"""
+from dataclasses import dataclass
+from glob import glob
+from multiprocessing import Array, Process, Queue
+from multiprocessing.queues import Queue as QueueType
+from pathlib import Path
+from numpy import e, finfo
+from queue import Empty
+from enum import Enum
+from numpy import ndarray
+from time import sleep
+from typing import List
+from io import open
+
+from picamera import camera, exc
+
+from DynAIkonTrap.camera import Frame
+from DynAIkonTrap.camera_to_disk import CameraToDisk, MotionData
+from DynAIkonTrap.filtering.animal import AnimalFilter
+from DynAIkonTrap.filtering.motion import MotionFilter
+from DynAIkonTrap.filtering.motion_queue import MotionLabelledQueue
+from DynAIkonTrap.filtering.motion_queue import MotionStatus
+from DynAIkonTrap.logging import get_logger
+from DynAIkonTrap.settings import CameraSettings, FilterSettings, WriterSettings
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class EventData:
+    motion_vector_frames : List[bytes]
+    raw_raster_frames : List[bytes]
+    dir : str
+
+class EventRememberer:
+
+    def __init__(self, read_from : CameraToDisk, writer_settings: WriterSettings):
+        self._raw_divisor = 5
+        self._output_queue: QueueType[EventData] = Queue(maxsize=10) #queue must be set to max size to avoid ram over-allocation
+        self._events_dir : Path = Path(writer_settings.path)
+        self._input_queue = read_from 
+        self._raw_hgt = 416
+        self._raw_wdt = 416
+        self._raw_bpp = 4
+        width, height = read_from._resolution
+        self._cols = ((width + 15) // 16) + 1
+        self._rows = (height + 15) // 16
+        self._framerate = read_from._framerate
+        self._motion_element_size = ((finfo(float).bits // 8) * 2) + (
+            self._rows * self._cols * MotionData.motion_dtype.itemsize
+        )
+        self._usher = Process(target=self.proc_events, daemon=True)
+        self._usher.start()
+
+
+    def proc_events(self):
+        while True:
+            try:
+                event_dir = self._input_queue.get()
+                #dirs = glob(str(event_dir) + '/event_*/')
+                self._output_queue.put(self.dir_to_event(event_dir))
+            except Empty:
+                sleep(1)
+                pass
+
+
+    def dir_to_event(self, dir) -> EventData:
+        raw_path = Path(dir).joinpath('clip.dat')
+        print(str(raw_path))
+        vect_path = Path(dir).joinpath('clip_vect.dat')
+        #event = EventData()
+        raw_raster_frames = []
+        try:
+            with open(raw_path, 'rb') as file:
+                for buf in file.read(self._raw_hgt * self._raw_wdt * self._raw_bpp):
+                    raw_raster_frames.append(buf)
+        except Exception as e:
+            print(e)
+            #add resolve
+            pass
+        motion_vector_frames = []
+        try:
+            with open(vect_path, 'rb') as file:
+                for buf in file.read(self._motion_element_size):
+                    motion_vector_frames.append(buf)
+        except Exception as e:
+            #add resolve
+            print(e)
+            pass
+        
+        return EventData(motion_vector_frames=motion_vector_frames, raw_raster_frames=raw_raster_frames, dir=dir)
+
+    def get(self) -> EventData:
+        return self._output_queue.get()
+        
+
+
+    
+
+

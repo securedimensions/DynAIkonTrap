@@ -16,6 +16,8 @@
 from logging import getLogger
 from signal import signal, SIGINT
 from argparse import ArgumentParser
+from time import sleep
+
 
 
 def get_version_number() -> str:
@@ -34,7 +36,10 @@ argparse.add_argument(
 args = argparse.parse_args()
 
 from DynAIkonTrap.camera import Camera
-from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.filtering.filtering import Filter
+from DynAIkonTrap.camera_to_disk import CameraToDisk
+from DynAIkonTrap.filtering.filtering_from_disk import FilterFromDisk
+from DynAIkonTrap.filtering.remember_from_disk import EventRememberer
 from DynAIkonTrap.comms import Output
 from DynAIkonTrap.sensor import SensorLogs
 from DynAIkonTrap.settings import load_settings
@@ -62,10 +67,12 @@ print('You can halt execution with <Ctrl>+C anytime\n')
 settings = load_settings()
 getLogger().setLevel(settings.logging.level)
 
-camera = Camera(settings=settings.camera)
-filters = Filter(read_from=camera, settings=settings.filter)
-sensor_logs = SensorLogs(settings=settings.sensor)
-Output(settings=settings.output, read_from=(filters, sensor_logs))
+camera = CameraToDisk(camera_settings=settings.camera, writer_settings=settings.output, filter_settings=settings.filter)
+rememberer = EventRememberer(read_from=camera, writer_settings=settings.output)
+filters = FilterFromDisk(read_from=rememberer, settings=settings.filter)
+#sensor_logs = SensorLogs(settings=settings.sensor)
+#Output(settings=settings.output, read_from=(filters, sensor_logs))
 
 while True:
+    sleep(0.5)
     pass
