@@ -28,7 +28,7 @@ from queue import Empty
 from pathlib import Path
 from time import sleep, time
 import numpy as np
-import struct
+from struct import pack
 from multiprocessing import Event, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
@@ -87,7 +87,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._cols = ((width + 15) // 16) + 1
         self._rows = (height + 15) // 16
 
-        element_size = ((np.finfo(float).bits // 8) * 2) + (
+        element_size = (len(pack('f', float(0.0))) * 2) + (
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
 
@@ -129,11 +129,12 @@ class MotionRAMBuffer(PiMotionAnalysis):
                     skip_frames = ceil((end - start) / self._target_time)
                 count_frames += 1
                 motion_bytes = (
-                    struct.pack("f", float(time()))
-                    + struct.pack("f", motion_score)
+                    pack("f", float(time()))
+                    + pack("f", float(motion_score))
                     + bytearray(motion_frame)
                 )
                 self._bytes_written += self._active_stream.write(motion_bytes)
+
             except:
                 sleep(0.1)
                 pass
@@ -358,7 +359,7 @@ class CameraToDisk:
 
                     while (time() - motion_start_time) < event_len_s:
                         if ((time() - last_buffer_empty_t) / self._buffer_secs) > 0.75:
-                            self.empty_all_buffers(current_path, False)
+                            self.empty_all_buffers(current_path, start=False)
                             last_buffer_empty_t = time()
 
                         self._camera.wait_recording(1)
