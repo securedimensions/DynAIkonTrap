@@ -32,7 +32,7 @@ from requests.exceptions import HTTPError, ConnectionError
 from numpy import asarray
 import cv2  # pdoc3 can't handle importing individual OpenCV functions
 
-from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.filtering.filtering import Filter
 from DynAIkonTrap.sensor import SensorLog, SensorLogs, Reading
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import (

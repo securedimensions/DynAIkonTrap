@@ -69,7 +69,7 @@ getLogger().setLevel(settings.logging.level)
 
 camera = CameraToDisk(camera_settings=settings.camera, writer_settings=settings.output, filter_settings=settings.filter)
 rememberer = EventRememberer(read_from=camera, writer_settings=settings.output)
-filters = FilterFromDisk(read_from=rememberer, settings=settings.filter)
+filters = Filter(read_from=rememberer, settings=settings.filter)
 #sensor_logs = SensorLogs(settings=settings.sensor)
 #Output(settings=settings.output, read_from=(filters, sensor_logs))
 

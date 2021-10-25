@@ -66,7 +66,7 @@ class EventRememberer:
         width, height = read_from._resolution
         self._cols = ((width + 15) // 16) + 1
         self._rows = (height + 15) // 16
-        self._framerate = read_from._framerate
+        self.framerate = read_from._framerate
         self._motion_element_size = ((finfo(float).bits // 8) * 2) + (
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
@@ -93,8 +93,12 @@ class EventRememberer:
         raw_raster_frames = []
         try:
             with open(raw_path, 'rb') as file:
-                for buf in file.read(self._raw_hgt * self._raw_wdt * self._raw_bpp):
+                while True:
+                    buf = file.read1(self._raw_hgt * self._raw_wdt * self._raw_bpp)
+                    if not buf:
+                       break
                     raw_raster_frames.append(buf)
+                    
         except Exception as e:
             print(e)
             #add resolve
@@ -102,7 +106,10 @@ class EventRememberer:
         motion_vector_frames = []
         try:
             with open(vect_path, 'rb') as file:
-                for buf in file.read(self._motion_element_size):
+                while True:
+                    buf = file.read1(self._motion_element_size)
+                    if not buf:
+                        break
                     motion_vector_frames.append(buf)
         except Exception as e:
             #add resolve
