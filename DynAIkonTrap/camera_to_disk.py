@@ -22,13 +22,13 @@ from collections import deque
 from ctypes import resize, sizeof
 from logging import exception
 from math import ceil
-from os import write, mkdir
+from os import write, mkdir, nice
 from io import open
 from queue import Empty
 from pathlib import Path
 from time import sleep, time
 import numpy as np
-from struct import pack
+from struct import pack, unpack
 from multiprocessing import Event, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
@@ -87,7 +87,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._cols = ((width + 15) // 16) + 1
         self._rows = (height + 15) // 16
 
-        element_size = (len(pack('f', float(0.0))) * 2) + (
+        element_size = (len(pack('d', float(0.0))) * 2) + (
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
 
@@ -114,6 +114,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._proc_queue.append(motion)
 
     def process_queue(self):
+        nice(0)
         skip_frames = 0
         count_frames = 0
         while True:
@@ -129,8 +130,8 @@ class MotionRAMBuffer(PiMotionAnalysis):
                     skip_frames = ceil((end - start) / self._target_time)
                 count_frames += 1
                 motion_bytes = (
-                    pack("f", float(time()))
-                    + pack("f", float(motion_score))
+                    pack("d", float(time()))
+                    + pack("d", float(motion_score))
                     + bytearray(motion_frame)
                 )
                 self._bytes_written += self._active_stream.write(motion_bytes)
@@ -328,6 +329,7 @@ class CameraToDisk:
         self._record_proc.start()
 
     def record(self):
+        nice(0)
         current_path = self._directory_maker.get_event()[0]
         self._camera.start_recording(
             self._h264_buffer,
@@ -349,6 +351,7 @@ class CameraToDisk:
                 self._camera.wait_recording(1)
 
                 if 1 == 1:  # motion is detected!
+                    print('motion detected!')
                     event_dir = current_path
                     motion_start_time = time() - self._minimum_event_length_s / 2
                     self.empty_all_buffers(current_path, start=True)
@@ -358,7 +361,7 @@ class CameraToDisk:
                     
 
                     while (time() - motion_start_time) < event_len_s:
-                        if ((time() - last_buffer_empty_t) / self._buffer_secs) > 0.75:
+                        if (time() - last_buffer_empty_t) > (0.5 * self._buffer_secs):
                             self.empty_all_buffers(current_path, start=False)
                             last_buffer_empty_t = time()
 
@@ -382,13 +385,18 @@ class CameraToDisk:
 
     def empty_all_buffers(self, current_path: Path, start:bool):
         self.empty_h264_buffer(current_path, start)
+        self._camera.wait_recording(0.25)
         self.empty_raw_buffer(current_path)
+        self._camera.wait_recording(0.25)
         self.empty_motion_buffer(current_path)
+        self._camera.wait_recording(0.25)
+
 
     def empty_h264_buffer(self, current_path: Path, start: bool):
         print('switch h264')
         self._h264_buffer.switch_stream()
         if start:
+            print('writing start at sps')
             self._h264_buffer.write_inactive_stream(
                 current_path.joinpath("clip.h264"),
                 frametype=PiVideoFrameType.sps_header,

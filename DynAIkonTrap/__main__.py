@@ -38,7 +38,6 @@ args = argparse.parse_args()
 from DynAIkonTrap.camera import Camera
 from DynAIkonTrap.filtering.filtering import Filter
 from DynAIkonTrap.camera_to_disk import CameraToDisk
-from DynAIkonTrap.filtering.filtering_from_disk import FilterFromDisk
 from DynAIkonTrap.filtering.remember_from_disk import EventRememberer
 from DynAIkonTrap.comms import Output
 from DynAIkonTrap.sensor import SensorLogs
@@ -70,8 +69,8 @@ getLogger().setLevel(settings.logging.level)
 camera = CameraToDisk(camera_settings=settings.camera, writer_settings=settings.output, filter_settings=settings.filter)
 rememberer = EventRememberer(read_from=camera, writer_settings=settings.output)
 filters = Filter(read_from=rememberer, settings=settings.filter)
-#sensor_logs = SensorLogs(settings=settings.sensor)
-#Output(settings=settings.output, read_from=(filters, sensor_logs))
+sensor_logs = SensorLogs(settings=settings.sensor)
+Output(settings=settings.output, read_from=(filters, sensor_logs))
 
 while True:
     sleep(0.5)

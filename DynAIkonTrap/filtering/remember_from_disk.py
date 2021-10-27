@@ -21,15 +21,18 @@ Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.moti
 The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
 """
 from dataclasses import dataclass
+from datetime import datetime
 from glob import glob
+from os import nice
 from multiprocessing import Array, Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from pathlib import Path
+from struct import unpack, pack
 from numpy import e, finfo
 from queue import Empty
 from enum import Enum
 from numpy import ndarray
-from time import sleep
+from time import sleep, time
 from typing import List
 from io import open
 
@@ -52,6 +55,7 @@ class EventData:
     motion_vector_frames : List[bytes]
     raw_raster_frames : List[bytes]
     dir : str
+    start_timestamp: float
 
 class EventRememberer:
 
@@ -67,7 +71,7 @@ class EventRememberer:
         self._cols = ((width + 15) // 16) + 1
         self._rows = (height + 15) // 16
         self.framerate = read_from._framerate
-        self._motion_element_size = ((finfo(float).bits // 8) * 2) + (
+        self._motion_element_size = (len(pack('d', float(0.0))) * 2) + (
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
         self._usher = Process(target=self.proc_events, daemon=True)
@@ -75,6 +79,7 @@ class EventRememberer:
 
 
     def proc_events(self):
+        nice(4)
         while True:
             try:
                 event_dir = self._input_queue.get()
@@ -104,19 +109,26 @@ class EventRememberer:
             #add resolve
             pass
         motion_vector_frames = []
+        event_time = time() #by default set time to now
         try:
             with open(vect_path, 'rb') as file:
+                start = True
                 while True:
-                    buf = file.read1(self._motion_element_size)
+                    buf = file.read(self._motion_element_size)
                     if not buf:
                         break
+                    if start:
+                        arr_timestamp = bytearray(buf)[0:8] # index the timestamp
+                        event_time = unpack('<d', arr_timestamp)[0]
+                        start=False
                     motion_vector_frames.append(buf)
+
         except Exception as e:
             #add resolve
             print(e)
             pass
         
-        return EventData(motion_vector_frames=motion_vector_frames, raw_raster_frames=raw_raster_frames, dir=dir)
+        return EventData(motion_vector_frames=motion_vector_frames, raw_raster_frames=raw_raster_frames, dir=dir, start_timestamp=event_time)
 
     def get(self) -> EventData:
         return self._output_queue.get()

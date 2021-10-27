@@ -24,6 +24,7 @@ from multiprocessing import Process, Queue
 from multiprocessing.context import set_spawning_popen
 from multiprocessing.queues import Queue as QueueType
 from queue import Empty
+from os import nice
 from subprocess import call
 from time import sleep
 from enum import Enum
@@ -42,7 +43,9 @@ from DynAIkonTrap.settings import FilterSettings
 logger = get_logger(__name__)
 
 
-
+class FilterMode(Enum):
+    BY_FRAME = 0
+    BY_EVENT = 1
 
 
 class Filter:
@@ -60,7 +63,9 @@ class Filter:
 
         self._animal_filter = AnimalFilter(settings=settings.animal)
 
+
         if isinstance(read_from, Camera):
+            self.mode = FilterMode.BY_FRAME
             self._output_queue: QueueType[Frame] = Queue()
             self._motion_filter = MotionFilter(
                 settings=settings.motion, framerate=self.framerate
@@ -76,6 +81,7 @@ class Filter:
             self._usher.start()
 
         elif isinstance(read_from, EventRememberer):
+            self.mode = FilterMode.BY_EVENT
             self._output_queue: QueueType[EventData] = Queue()
             self._usher = Process(target=self._handle_input_events, daemon=True)
             self._usher.start()
@@ -88,9 +94,9 @@ class Filter:
         Returns:
             Frame: An animal frame
         """
-        if isinstance(self._input_queue, Camera):
+        if self.mode == FilterMode.BY_FRAME:
             return self._motion_labelled_queue.get()
-        elif isinstance(self._input_queue, EventRememberer):
+        elif self.mode == FilterMode.BY_EVENT:
             return self._output_queue.get()
 
     def close(self):
@@ -119,14 +125,16 @@ class Filter:
                 self._motion_labelled_queue.put(frame, -1.0, MotionStatus.STILL)
     
     def _handle_input_events(self):
+        nice(4)
         while True:
             try:
                 event = self._input_queue.get()
                 result = self._process_event(event)
-                if not result:
-                    self._delete_event(event)
-                else:
-                    self._output_queue.put(event)
+                self._output_queue.put(event)
+                # if not result:
+                #     self._delete_event(event)
+                # else:
+                #     self._output_queue.put(event)
                 
             except Exception as e:
                 print(e)

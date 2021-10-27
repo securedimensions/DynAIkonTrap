@@ -22,6 +22,7 @@ from multiprocessing import Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from time import time
+from os import nice
 from serial import Serial, SerialException
 from collections import OrderedDict
 from signal import signal, setitimer, ITIMER_REAL, SIGALRM
@@ -210,6 +211,7 @@ class SensorLogs:
             )
 
     def _log(self):
+        nice(4)
         # Set up periodic temperature logging
         signal(SIGALRM, self._log_now)
         setitimer(ITIMER_REAL, 0.1, self._read_interval)
