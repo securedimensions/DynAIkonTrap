@@ -20,7 +20,7 @@ A :class:`Frame` is defined for this system as having the motion vectors, as use
 """
 from collections import deque
 from ctypes import resize, sizeof
-from logging import exception
+from logging import DEBUG, exception
 from math import ceil
 from os import write, mkdir, nice
 from io import open
@@ -36,6 +36,7 @@ from typing import Tuple
 from random import randint
 from threading import Thread
 import picamera
+from picamera import camera
 
 
 try:
@@ -48,11 +49,13 @@ except (OSError, ModuleNotFoundError):
     class PiMotionAnalysis:
         pass
 
+
 from DynAIkonTrap.custom_picamera import DynCamera
 from DynAIkonTrap.filtering.motion import MotionFilter
 from DynAIkonTrap.settings import (
     CameraSettings,
     FilterSettings,
+    RawImageFormat,
     WriterSettings,
     MotionFilterSettings,
 )
@@ -87,7 +90,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._cols = ((width + 15) // 16) + 1
         self._rows = (height + 15) // 16
 
-        element_size = (len(pack('d', float(0.0))) * 2) + (
+        element_size = (len(pack("d", float(0.0))) * 2) + (
             self._rows * self._cols * MotionData.motion_dtype.itemsize
         )
 
@@ -101,7 +104,9 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._target_time: float = 1.0 / (2.0 * camera.framerate)
         super().__init__(camera)
 
-        self._proc_thread = Thread(target=self.process_queue, name='motion process thread', daemon=True)
+        self._proc_thread = Thread(
+            target=self.process_queue, name="motion process thread", daemon=True
+        )
         self._proc_thread.start()
 
     def analyse(self, motion):
@@ -110,7 +115,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         Args:
             motion : motion data to be added to queue
         """
-        #self._proc_queue.put_nowait(motion)
+        # self._proc_queue.put_nowait(motion)
         self._proc_queue.append(motion)
 
     def process_queue(self):
@@ -224,11 +229,19 @@ class VideoRAMBuffer:
 
     def write_inactive_stream(self, filename: Path, frametype: PiVideoFrameType):
         with open(filename, "ab") as output:
+            i = self._inactive_stream.size - 1
             for frame in self._inactive_stream.frames:
                 if frame.frame_type == frametype:
+                    if frametype == PiVideoFrameType.sps_header:
+                        print(
+                            "------sps frame found at: {}--------".format(
+                                frame.position
+                            )
+                        )
                     self._inactive_stream.seek(frame.position)
                     break
-            while True:
+                i -= 1
+            while True and not i == 0:
                 buf = self._inactive_stream.read1()
                 if not buf:
                     break
@@ -236,9 +249,6 @@ class VideoRAMBuffer:
         # Wipe the circular stream once we're done
         self._inactive_stream.seek(0)
         self._inactive_stream.clear()
-
-
-
 
 
 class DirectoryMaker:
@@ -252,7 +262,7 @@ class DirectoryMaker:
         """
         self._base_dir = base_dir
         self._event_counter = 0
-    
+
     def get_event(self) -> Tuple[Path, str]:
         """Searches for a new directory path for motion event until a new one is found"""
 
@@ -262,15 +272,14 @@ class DirectoryMaker:
         ret_path.mkdir(parents=True, exist_ok=True)
         return (ret_path, ret_str)
 
-        
-
     def new_event(self) -> Tuple[Path, str]:
         """Gives string name and directory path for a new motion event on disk"""
 
         ret_str = "event_" + str(self._event_counter)
         self._event_counter += 1
-        ret_path = self._base_dir.joinpath(ret_str)            
+        ret_path = self._base_dir.joinpath(ret_str)
         return (ret_path, ret_str)
+
 
 class CameraToDisk:
     """Wraps picamera functionality to stream motion events to disk."""
@@ -287,18 +296,19 @@ class CameraToDisk:
             camera_settings (CameraSettings): settings object for camera construction
             writer_settings (WriterSettings): settings object for writing out events
         """
-        self._bitrate_bps = int(10e6)
-        self._buffer_secs = 10
-        self._raw_frame_wdt = 416
-        self._raw_frame_hgt = 416
-        self._raw_divisor = 5  # these concrete settings will go later.
-        self._resolution = camera_settings.resolution
-        self._framerate = camera_settings.framerate
-        self._camera = DynCamera(raw_divisor=self._raw_divisor, resolution=self._resolution, framerate=self._framerate)
-        
+        self._buffer_secs = camera_settings.io_buffer_size_s
+        self._bitrate = camera_settings.bitrate_bps
+        self._raw_stream_image_format = camera_settings.raw_stream_image_format
+        self._raw_frame_dims = camera_settings.raw_resolution
+        self._camera = DynCamera(
+            raw_divisor=camera_settings.raw_framerate_divisor,
+            resolution=camera_settings.resolution,
+            framerate=camera_settings.framerate,
+        )
+
         self._on = True
         self._minimum_event_length_s: float = (
-            filter_settings.motion_queue.context_length_s
+            filter_settings.motion_queue.context_length_s * 2
         )
         self._maximum_event_length_s: float = (
             filter_settings.motion_queue.max_sequence_period_s
@@ -308,21 +318,34 @@ class CameraToDisk:
         self._h264_buffer: VideoRAMBuffer = VideoRAMBuffer(
             self._camera,
             splitter_port=1,
-            size=(self._bitrate_bps * self._buffer_secs) // 8,
+            size=(camera_settings.bitrate_bps * camera_settings.io_buffer_size_s) // 8,
         )
+        bits_per_pixel_raw = 0
+        if camera_settings.raw_stream_image_format == RawImageFormat.RGBA:
+            bits_per_pixel_raw = 4
+        elif camera_settings.raw_stream_image_format == RawImageFormat.RGB:
+            bits_per_pixel_raw = 3
+
         self._raw_buffer: VideoRAMBuffer = VideoRAMBuffer(
             self._camera,
             splitter_port=2,
-            size=((self._raw_frame_wdt * self._raw_frame_hgt * 4) * (self._camera.framerate) * self._buffer_secs)
+            size=(
+                (
+                    camera_settings.raw_resolution[0]
+                    * camera_settings.raw_resolution[1]
+                    * bits_per_pixel_raw
+                )
+                * (camera_settings.framerate / camera_settings.raw_framerate_divisor)
+                * camera_settings.io_buffer_size_s
+            ),
         )
-        
+
         self._motion_buffer: MotionRAMBuffer = MotionRAMBuffer(
             self._camera, filter_settings.motion, self._buffer_secs
         )
         self._directory_maker: DirectoryMaker = DirectoryMaker(
             Path(writer_settings.path)
         )
-        # self._synchroniser = Synchroniser(self._output)
         self._record_proc = Thread(
             target=self.record, name="camera recording process", daemon=True
         )
@@ -336,13 +359,14 @@ class CameraToDisk:
             format="h264",
             splitter_port=1,
             motion_output=self._motion_buffer,
-            bitrate=self._bitrate_bps,
+            bitrate=self._bitrate,
+            intra_period=10,
         )
         self._camera.start_recording(
             self._raw_buffer,
             format="rgba",
             splitter_port=2,
-            resize=(self._raw_frame_hgt, self._raw_frame_wdt),
+            resize=self._raw_frame_dims,
         )
         self._camera.wait_recording(5)  # camera warm-up
 
@@ -351,26 +375,25 @@ class CameraToDisk:
                 self._camera.wait_recording(1)
 
                 if 1 == 1:  # motion is detected!
-                    print('motion detected!')
+                    print("motion detected!")
                     event_dir = current_path
                     motion_start_time = time() - self._minimum_event_length_s / 2
-                    self.empty_all_buffers(current_path, start=True)
                     last_buffer_empty_t = time()
-                    event_len_s = 20
+                    self.empty_all_buffers(current_path, start=True)
+                    event_len_s = 10
                     self._camera.wait_recording(self._minimum_event_length_s / 2.0)
-                    
 
                     while (time() - motion_start_time) < event_len_s:
-                        if (time() - last_buffer_empty_t) > (0.5 * self._buffer_secs):
-                            self.empty_all_buffers(current_path, start=False)
+                        if (time() - last_buffer_empty_t) > (0.75 * self._buffer_secs):
                             last_buffer_empty_t = time()
+                            self.empty_all_buffers(current_path, start=False)
 
                         self._camera.wait_recording(1)
 
                     # empty buffers
                     self.empty_all_buffers(current_path, start=False)
                     self._output_queue.put(event_dir)
-                    
+
                     current_path = self._directory_maker.get_event()[0]
         finally:
             self._camera.stop_recording()
@@ -380,23 +403,22 @@ class CameraToDisk:
             return self._output_queue.get()
 
         except Empty:
-            logger.error('No events available from Camera')
+            logger.error("No events available from Camera")
             raise Empty
 
-    def empty_all_buffers(self, current_path: Path, start:bool):
-        self.empty_h264_buffer(current_path, start)
-        self._camera.wait_recording(0.25)
-        self.empty_raw_buffer(current_path)
-        self._camera.wait_recording(0.25)
-        self.empty_motion_buffer(current_path)
-        self._camera.wait_recording(0.25)
+    def empty_all_buffers(self, current_path: Path, start: bool):
+        # switch all buffers first
+        self._h264_buffer.switch_stream()
+        self._raw_buffer.switch_stream()
+        self._motion_buffer.switch_stream()
 
+        self.empty_h264_buffer(current_path, start)
+        self.empty_raw_buffer(current_path)
+        self.empty_motion_buffer(current_path)
 
     def empty_h264_buffer(self, current_path: Path, start: bool):
-        print('switch h264')
-        self._h264_buffer.switch_stream()
         if start:
-            print('writing start at sps')
+            print("----looking for sps----")
             self._h264_buffer.write_inactive_stream(
                 current_path.joinpath("clip.h264"),
                 frametype=PiVideoFrameType.sps_header,
@@ -405,17 +427,13 @@ class CameraToDisk:
             self._h264_buffer.write_inactive_stream(
                 current_path.joinpath("clip.h264"), frametype=PiVideoFrameType.frame
             )
-    
+
     def empty_raw_buffer(self, current_path: Path):
-        print('switch raw')
-        self._raw_buffer.switch_stream()
         self._raw_buffer.write_inactive_stream(
             current_path.joinpath("clip.dat"), frametype=PiVideoFrameType.frame
         )
-        
+
     def empty_motion_buffer(self, current_path: Path):
-        print('switch motion')
-        self._motion_buffer.switch_stream()
         self._motion_buffer.write_inactive_stream(
             current_path.joinpath("clip_vect.dat")
         )
