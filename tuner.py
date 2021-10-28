@@ -19,6 +19,7 @@ from types import MappingProxyType
 from DynAIkonTrap.settings import (
     OutputMode,
     OutputVideoCodec,
+    PipelineVariant,
     RawImageFormat,
     SenderSettings,
     Settings,
@@ -68,6 +69,15 @@ print(
     "Lastly, it is recommended not to change any parameters marked with `(ADVANCED)`\n"
 )
 
+print("Pipeline settings")
+print("---------------")
+pipeline_variant = input(
+    "Indicate which pipeline to use LEGACY or LOW_POWER [LOW_POWER]> "
+)
+if pipeline_variant == "LEGACY":
+    settings.pipeline.pipeline_variant = PipelineVariant.LEGACY.value
+else:
+    settings.pipeline.pipeline_variant = PipelineVariant.LOW_POWER.value
 
 print("Camera settings")
 print("---------------")

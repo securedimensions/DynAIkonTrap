@@ -51,7 +51,9 @@ class FilterMode(Enum):
 class Filter:
     """Wrapper for the complete image filtering pipeline"""
 
-    def __init__(self, read_from: Union[Camera, EventRememberer], settings: FilterSettings):
+    def __init__(
+        self, read_from: Union[Camera, EventRememberer], settings: FilterSettings
+    ):
         """
         Args:
             read_from (Camera): Read frames from this camera
@@ -62,7 +64,6 @@ class Filter:
         self.framerate = read_from.framerate
 
         self._animal_filter = AnimalFilter(settings=settings.animal)
-
 
         if isinstance(read_from, Camera):
             self.mode = FilterMode.BY_FRAME
@@ -76,7 +77,7 @@ class Filter:
                 settings=settings.motion_queue,
                 framerate=self.framerate,
             )
-            
+
             self._usher = Process(target=self._handle_input_frames, daemon=True)
             self._usher.start()
 
@@ -86,7 +87,7 @@ class Filter:
             self._usher = Process(target=self._handle_input_events, daemon=True)
             self._usher.start()
 
-        logger.debug('Filter started')
+        logger.debug("Filter started")
 
     def get(self):
         """Retrieve the next animal `Frame` from the filter pipeline's output
@@ -114,42 +115,43 @@ class Filter:
                 self._motion_filter.reset()
                 continue
 
-
             motion_score = self._motion_filter.run_raw(frame.motion)
             motion_detected = motion_score >= self._motion_threshold
 
             if motion_detected:
-                self._motion_labelled_queue.put(frame, motion_score, MotionStatus.MOTION)
+                self._motion_labelled_queue.put(
+                    frame, motion_score, MotionStatus.MOTION
+                )
 
             else:
                 self._motion_labelled_queue.put(frame, -1.0, MotionStatus.STILL)
-    
+
     def _handle_input_events(self):
         nice(4)
         while True:
             try:
                 event = self._input_queue.get()
-                result = self._process_event(event)
+                # result = self._process_event(event)
                 self._output_queue.put(event)
                 # if not result:
                 #     self._delete_event(event)
                 # else:
                 #     self._output_queue.put(event)
-                
+
             except Exception as e:
                 print(e)
                 sleep(1)
                 continue
 
-    def _process_event(self, event:EventData) -> bool:
-        lst_indx_frames = list(enumerate(event.raw_raster_frames))      
+    def _process_event(self, event: EventData) -> bool:
+        lst_indx_frames = list(enumerate(event.raw_raster_frames))
         middle_idx = len(lst_indx_frames) // 2
-        lst_indx_frames.sort(key = lambda x :abs( middle_idx - x[0]))
+        lst_indx_frames.sort(key=lambda x: abs(middle_idx - x[0]))
         for index, frame in lst_indx_frames:
             is_animal = self._animal_filter.run(frame, format=ImageFormat.RGBA)
             if is_animal:
                 return True
         return False
-    
-    def _delete_event(self, event:EventData):
-        call(['rm -r {}'.format(event.dir)], shell=True)
+
+    def _delete_event(self, event: EventData):
+        call(["rm -r {}".format(event.dir)], shell=True)

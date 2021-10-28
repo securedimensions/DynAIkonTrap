@@ -56,7 +56,7 @@ from time import time
 from DynAIkonTrap.camera import Frame
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import MotionQueueSettings
-from DynAIkonTrap.filtering.animal import AnimalFilter
+from DynAIkonTrap.filtering.animal import AnimalFilter, ImageFormat
 
 logger = get_logger(__name__)
 
@@ -331,7 +331,7 @@ class MotionLabelledQueue:
 
             frame = sequence.get_highest_priority()
             while frame:
-                is_animal = self._animal_detector.run(frame.frame.image)
+                is_animal = self._animal_detector.run(frame.frame.image, format=ImageFormat.JPEG)
 
                 _t = time()
                 t_actual_framerate += _t - t_temp
