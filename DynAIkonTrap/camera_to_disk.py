@@ -86,14 +86,9 @@ class MotionRAMBuffer(PiMotionAnalysis):
         settings: MotionFilterSettings,
         seconds: float,
     ) -> None:
-        width, height = camera.resolution
-        self._cols = ((width + 15) // 16) + 1
-        self._rows = (height + 15) // 16
-
-        element_size = (len(pack("d", float(0.0))) * 2) + (
-            self._rows * self._cols * MotionData.motion_dtype.itemsize
-        )
-
+        (width, height) = camera.resolution
+        (self._rows, self._cols) = self.calc_rows_cols(width, height)
+        element_size = self.calc_motion_element_size(self._rows, self._cols)
         buff_len = seconds * camera.framerate
         self._active_stream = CircularIO(element_size * buff_len)
         self._inactive_stream = CircularIO(element_size * buff_len)
@@ -176,6 +171,35 @@ class MotionRAMBuffer(PiMotionAnalysis):
             self._active_stream,
         )
         self._bytes_written = 0
+    
+    def calc_rows_cols(width:int, height:int) -> Tuple[int, int]:
+        """calculate the dimensions of motion vectors given a resolution
+        
+        Args:
+            width (int): resolution width in pixels
+            height (int):  resolution height in pixels
+
+        Returns:
+            Tuple[int, int]: motion vector row, column dimensions
+        """
+        cols = ((width + 15) // 16) + 1
+        rows = (height + 15) // 16
+        return (rows, cols)
+    
+    def calc_motion_element_size(rows:int,cols:int) -> int:
+        """calculates the size of a single motion element in the ring buffer
+
+        Args:
+            rows (int): motion vector row dimension
+            cols (int): motion vector column dimension
+
+        Returns:
+            int: size (in bytes) of a single motion element. Computed as size of 2 floats (16 bytes) plus size of all motion vectors to fit input dimensions 
+        """
+        return (len(pack("d", float(0.0))) * 2) + (
+            rows * cols * MotionData.motion_dtype.itemsize
+        )
+        
 
 
 class VideoRAMBuffer:
@@ -296,10 +320,17 @@ class CameraToDisk:
             camera_settings (CameraSettings): settings object for camera construction
             writer_settings (WriterSettings): settings object for writing out events
         """
+        self.resolution = camera_settings.resolution
         self._buffer_secs = camera_settings.io_buffer_size_s
-        self._bitrate = camera_settings.bitrate_bps
+        self.bitrate = camera_settings.bitrate_bps
         self._raw_stream_image_format = camera_settings.raw_stream_image_format
-        self._raw_frame_dims = camera_settings.raw_resolution
+        self.bits_per_pixel_raw = 0
+        if camera_settings.raw_stream_image_format == RawImageFormat.RGBA:
+            self.bits_per_pixel_raw = 4
+        elif camera_settings.raw_stream_image_format == RawImageFormat.RGB:
+            self.bits_per_pixel_raw = 3
+        self.raw_frame_dims = camera_settings.raw_resolution
+        self.framerate=camera_settings.framerate
         self._camera = DynCamera(
             raw_divisor=camera_settings.raw_framerate_divisor,
             resolution=camera_settings.resolution,
@@ -320,11 +351,7 @@ class CameraToDisk:
             splitter_port=1,
             size=(camera_settings.bitrate_bps * camera_settings.io_buffer_size_s) // 8,
         )
-        bits_per_pixel_raw = 0
-        if camera_settings.raw_stream_image_format == RawImageFormat.RGBA:
-            bits_per_pixel_raw = 4
-        elif camera_settings.raw_stream_image_format == RawImageFormat.RGB:
-            bits_per_pixel_raw = 3
+        
 
         self._raw_buffer: VideoRAMBuffer = VideoRAMBuffer(
             self._camera,
@@ -333,7 +360,7 @@ class CameraToDisk:
                 (
                     camera_settings.raw_resolution[0]
                     * camera_settings.raw_resolution[1]
-                    * bits_per_pixel_raw
+                    * self.bits_per_pixel_raw
                 )
                 * (camera_settings.framerate / camera_settings.raw_framerate_divisor)
                 * camera_settings.io_buffer_size_s
