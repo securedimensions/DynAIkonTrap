@@ -36,14 +36,8 @@ from time import sleep, time
 from typing import List
 from io import open
 
-from DynAIkonTrap.camera import Frame
-from DynAIkonTrap.camera_to_disk import CameraToDisk, MotionData, MotionRAMBuffer
-from DynAIkonTrap.filtering.animal import AnimalFilter
-from DynAIkonTrap.filtering.motion import MotionFilter
-from DynAIkonTrap.filtering.motion_queue import MotionLabelledQueue
-from DynAIkonTrap.filtering.motion_queue import MotionStatus
+from DynAIkonTrap.camera_to_disk import CameraToDisk, MotionRAMBuffer
 from DynAIkonTrap.logging import get_logger
-from DynAIkonTrap.settings import CameraSettings, FilterSettings, WriterSettings
 
 logger = get_logger(__name__)
 
@@ -51,6 +45,7 @@ logger = get_logger(__name__)
 @dataclass
 class EventData:
     """A class for storing motion event data for further processing."""
+
     motion_vector_frames: List[bytes]
     raw_raster_frames: List[bytes]
     dir: str
@@ -58,17 +53,15 @@ class EventData:
 
 
 class EventRememberer:
-    """This object reads new event directories from an instance of :class:`~DynAIkonTrap.camera_to_disk.CameraToDisk`. Outputs a Queue of EventData objects for further processing.
-    """
+    """This object reads new event directories from an instance of :class:`~DynAIkonTrap.camera_to_disk.CameraToDisk`. Outputs a Queue of EventData objects for further processing."""
+
     def __init__(self, read_from: CameraToDisk):
         """Initialises EventRememberer. Starts events processing thread.
 
         Args:
             read_from (CameraToDisk): The :class:`~DynAIkonTrap.camera_to_disk.CameraToDisk` object creating event directories on disk.
         """
-        self._output_queue: QueueType[EventData] = Queue(
-            maxsize=10
-        )  
+        self._output_queue: QueueType[EventData] = Queue(maxsize=10)
         self._input_queue = read_from
         self._raw_dims = read_from.raw_frame_dims
         self._raw_bpp = read_from.bits_per_pixel_raw
@@ -76,14 +69,15 @@ class EventRememberer:
         width, height = read_from.resolution
 
         self._rows, self._cols = MotionRAMBuffer.calc_rows_cols(width, height)
-        self._motion_element_size = MotionRAMBuffer.calc_motion_element_size(self._rows, self._cols)
+        self._motion_element_size = MotionRAMBuffer.calc_motion_element_size(
+            self._rows, self._cols
+        )
 
         self._usher = Process(target=self.proc_events, daemon=True)
         self._usher.start()
 
     def proc_events(self):
-        """Process input queue of event directories
-        """
+        """Process input queue of event directories"""
         nice(4)
         while True:
             try:
@@ -93,7 +87,7 @@ class EventRememberer:
                 logger.error("Trying to read from empty event directory queue")
                 pass
 
-    def dir_to_event(self, dir:str) -> EventData:
+    def dir_to_event(self, dir: str) -> EventData:
         """converts an event directory to an instance of EventData
 
         Args:
@@ -108,7 +102,9 @@ class EventRememberer:
         try:
             with open(raw_path, "rb") as file:
                 while True:
-                    buf = file.read1(self._raw_dims[0] * self._raw_dims[1] * self._raw_bpp)
+                    buf = file.read1(
+                        self._raw_dims[0] * self._raw_dims[1] * self._raw_bpp
+                    )
                     if not buf:
                         break
                     raw_raster_frames.append(buf)
