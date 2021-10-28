@@ -21,18 +21,13 @@ Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.moti
 The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
 """
 from dataclasses import dataclass
-from datetime import datetime
-from glob import glob
 from os import nice
 from multiprocessing import Array, Process, Queue
 from multiprocessing.queues import Queue as QueueType
 from pathlib import Path
-from struct import unpack, pack
-from numpy import e, finfo
+from struct import unpack
 from queue import Empty
-from enum import Enum
-from numpy import ndarray
-from time import sleep, time
+from time import time
 from typing import List
 from io import open
 
