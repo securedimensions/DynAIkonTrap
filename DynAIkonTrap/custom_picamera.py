@@ -16,16 +16,8 @@
 """
 Provides a interface to customisations on classes in the :class:`PiCamera` library. The :class:`Camera` class provides the :class:`Frame`\ s from the camera's stream via a queue. 
 """
-from queue import Empty
-from time import sleep, time
-import numpy as np
-from multiprocessing import Queue
-from multiprocessing.queues import Queue as QueueType
-from dataclasses import dataclass
-from typing import Tuple
 
 from picamera import PiCamera, PiRawVideoEncoder, PiVideoFrameType, PiCookedVideoEncoder
-
 
 from DynAIkonTrap.logging import get_logger
 
@@ -33,28 +25,33 @@ logger = get_logger(__name__)
 
 
 class DynRawEncoder(PiRawVideoEncoder):
+    """A custom raw video encoder which outputs a divided number of frames. This class inherits from PiRawVideoEncoder."""
+
     def __init__(self, *args, **kwargs):
-        self._divisor = 1
+        """Initalise DynRawEncoder, by default the divisor is set to 1"""
+        self.divisor = 1
         self._count = 0
         super(DynRawEncoder, self).__init__(*args, **kwargs)
-    
+
     def _callback_write(self, buf, key=PiVideoFrameType.frame):
+        """Override _callback_write() function to not encode frames which do not land on a divisor index."""
         self._count += 1
-        if (self._count % self._divisor) == 0:
+        if (self._count % self.divisor) == 0:
             return super()._callback_write(buf, key=key)
 
+
 class DynCamera(PiCamera):
+    """Extension of PiCamera class which makes use of DynRawEncoder for raw encoder formats"""
+
     def __init__(self, raw_divisor=1, *args, **kwargs):
-        self._raw_divisor = raw_divisor
+        self.raw_divisor = raw_divisor
         super(DynCamera, self).__init__(*args, **kwargs)
-        
 
     def _get_video_encoder(self, camera_port, output_port, format, resize, **options):
         encoder_class = (
-                DynRawEncoder if format in self.RAW_FORMATS else
-                PiCookedVideoEncoder)
-        ret = encoder_class(
-                self, camera_port, output_port, format, resize, **options)
+            DynRawEncoder if format in self.RAW_FORMATS else PiCookedVideoEncoder
+        )
+        ret = encoder_class(self, camera_port, output_port, format, resize, **options)
         if isinstance(ret, DynRawEncoder):
-            ret._divisor = self._raw_divisor
+            ret.divisor = self.raw_divisor
         return ret

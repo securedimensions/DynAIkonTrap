@@ -40,7 +40,7 @@ class Reading:
     """Representation of a sensor reading, which has a value and units of measurement"""
 
     value: float
-    units: 'Union[str, Type[None]]' = None
+    units: "Union[str, Type[None]]" = None
 
 
 @dataclass
@@ -51,7 +51,7 @@ class SensorLog:
     readings: Dict[str, Reading]
 
     def serialise(self):
-        serialised = {'system_time': {"value": self.system_time, "units": "s"}}
+        serialised = {"system_time": {"value": self.system_time, "units": "s"}}
         for k, v in self.readings.items():
             if isinstance(v, Reading):
                 serialised[k] = v.__dict__
@@ -75,7 +75,7 @@ class Sensor:
         try:
             self._ser = Serial(port, baud, timeout=0)
         except SerialException:
-            logger.warning('Sensor board not found on {}, baud {}'.format(port, baud))
+            logger.warning("Sensor board not found on {}, baud {}".format(port, baud))
             self._ser = None
             raise
 
@@ -90,14 +90,14 @@ class Sensor:
             return None
 
         # urSense takes `e` to trigger newest reading
-        self._ser.write(b'e')
+        self._ser.write(b"e")
         while self._ser.in_waiting:
             data = self._ser.readline()
 
         if not data:
             return None
 
-        sensor_log = self._parser.parse(data.decode('utf-8'))
+        sensor_log = self._parser.parse(data.decode("utf-8"))
         if sensor_log == None:
             return None
         sensor_log = SensorLog(system_time, sensor_log)
@@ -142,7 +142,7 @@ class SensorLogs:
 
         self._logger = Process(target=self._log, daemon=True)
         self._logger.start()
-        logger.debug('SensorLogs started')
+        logger.debug("SensorLogs started")
 
     @property
     def read_interval(self):
@@ -195,7 +195,7 @@ class SensorLogs:
         try:
             self._remove_logs(keys[:index])
         except KeyError as e:
-            logger.error('Attempted to delete nonexistent log(s): {}'.format(e))
+            logger.error("Attempted to delete nonexistent log(s): {}".format(e))
         return self._storage.get(key, None)
 
     def _remove_logs(self, timestamps: List[float]):
@@ -205,7 +205,7 @@ class SensorLogs:
 
         if timestamps:
             logger.debug(
-                'Deleted logs for {}\nRemaining: {}'.format(
+                "Deleted logs for {}\nRemaining: {}".format(
                     timestamps, self._storage.keys()
                 )
             )

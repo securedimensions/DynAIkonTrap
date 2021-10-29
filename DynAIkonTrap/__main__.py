@@ -73,7 +73,7 @@ else:
         writer_settings=settings.output,
         filter_settings=settings.filter,
     )
-    rememberer = EventRememberer(read_from=camera, writer_settings=settings.output)
+    rememberer = EventRememberer(read_from=camera)
     filters = Filter(read_from=rememberer, settings=settings.filter)
 
 sensor_logs = SensorLogs(settings=settings.sensor)

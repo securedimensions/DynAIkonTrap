@@ -218,7 +218,7 @@ class AbstractOutput(metaclass=ABCMeta):
                 self._reader = Process(target=self._read_frames_to_image, daemon=True)
             elif self._animal_queue.mode == FilterMode.BY_EVENT:
                 self._reader = Process(target=self._read_events_to_image, daemon=True)
-        
+
         self._reader.start()
 
     def close(self):
@@ -275,7 +275,7 @@ class AbstractOutput(metaclass=ABCMeta):
 
             writer.write(decoded_image)
             frame_timestamps.append(frame.timestamp)
-    
+
     def _read_events_to_video(self):
         nice(4)
         caption_generator = VideoCaption(self._sensor_logs, self.framerate)
@@ -285,18 +285,29 @@ class AbstractOutput(metaclass=ABCMeta):
 
                 start_time = event.start_timestamp
                 file = NamedTemporaryFile(suffix=self._video_suffix)
-                call(['nice -n 5 ffmpeg -framerate {} -i {} -c copy {} -y'.format(self.framerate, join(event.dir,'clip.h264'), file.name)], shell=True)
-                caption = caption_generator.generate_sensor_json([event.start_timestamp])
-                self.output_video(video=file, caption=caption, time=event.start_timestamp)
+                call(
+                    [
+                        "nice -n 5 ffmpeg -framerate {} -i {} -c copy {} -y".format(
+                            self.framerate, join(event.dir, "clip.h264"), file.name
+                        )
+                    ],
+                    shell=True,
+                )
+                caption = caption_generator.generate_sensor_json(
+                    [event.start_timestamp]
+                )
+                self.output_video(
+                    video=file, caption=caption, time=event.start_timestamp
+                )
                 file.close()
             except Exception as e:
                 pass
-    
+
     def _read_events_to_image(self):
         while True:
             try:
                 event = self._animal_queue.get()
-                vidcap = cv2.VideoCapture(join(event.dir, 'clip.h264'))
+                vidcap = cv2.VideoCapture(join(event.dir, "clip.h264"))
                 success, image = vidcap.read()
                 log = self._sensor_logs.get(event.start_timestamp)
                 while success:
@@ -308,9 +319,8 @@ class AbstractOutput(metaclass=ABCMeta):
                             image=image, time=event.start_timestamp, sensor_log=log
                         )
                     success, image = vidcap.read()
-            except Exception as e: 
+            except Exception as e:
                 pass
-
 
     @abstractmethod
     def output_still(self, image: bytes, time: float, sensor_log: SensorLog):

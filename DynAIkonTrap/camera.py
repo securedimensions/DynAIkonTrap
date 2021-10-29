@@ -103,8 +103,10 @@ class Camera:
             motion_output=MovementAnalyser(self._camera, synchroniser),
         )
         self._camera.start_recording(
-            ImageReader(synchroniser), format="mjpeg", splitter_port=2,
-            bitrate=settings.bitrate_bps
+            ImageReader(synchroniser),
+            format="mjpeg",
+            splitter_port=2,
+            bitrate=settings.bitrate_bps,
         )
         logger.debug("Camera started")
 

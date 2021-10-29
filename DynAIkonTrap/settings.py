@@ -34,10 +34,9 @@ The JSON file should be structured as follows (of course the values can be chang
         "pipeline_variant" : 1
     },
     "camera": {
-        "framerate": 20,
-        "resolution": [640, 480],
+        "framerate": 10,
+        "resolution": [1920, 1080],
         "bitrate_bps": 10000000,
-        "raw_resolution": [416, 416],
         "raw_framerate_divisor" : 5,
         "io_buffer_size_s" : 20
         "raw_stream_image_format" : 0
@@ -111,10 +110,9 @@ class RawImageFormat(Enum):
 class CameraSettings:
     """Settings for a  :class:`~DynAIkonTrap.camera.Camera`"""
 
-    framerate: int = 20
-    resolution: Tuple[int, int] = (640, 480)
+    framerate: int = 10
+    resolution: Tuple[int, int] = (1920, 1080)
     bitrate_bps: int = 10000000
-    raw_resolution: Tuple[int, int] = (416, 416)
     raw_framerate_divisor: int = 5
     io_buffer_size_s: int = 20
     raw_stream_image_format: RawImageFormat = RawImageFormat.RGBA
