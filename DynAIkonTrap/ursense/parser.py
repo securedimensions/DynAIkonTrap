@@ -54,9 +54,9 @@ class UrSenseParser:
 
     def _quantise_gps(
         self,
-        lat: 'sensor.Reading',
-        lon: 'sensor.Reading',
-    ) -> 'Tuple[sensor.Reading, sensor.Reading]':
+        lat: "sensor.Reading",
+        lon: "sensor.Reading",
+    ) -> "Tuple[sensor.Reading, sensor.Reading]":
         if self._obfuscation_distance_km == 0:
             return (lat, lon)
 
@@ -69,8 +69,8 @@ class UrSenseParser:
             else EARTH_CIRCUMFERENCE_KM / 8
         )
 
-        lat_rad = _deg_to_rad(lat.value * (1 if lat.units == 'N' else -1))
-        lon_rad = _deg_to_rad(lon.value * (1 if lon.units == 'E' else -1))
+        lat_rad = _deg_to_rad(lat.value * (1 if lat.units == "N" else -1))
+        lon_rad = _deg_to_rad(lon.value * (1 if lon.units == "E" else -1))
 
         yquant = _obfuscation_distance_km / EARTH_CIRCUMFERENCE_KM
         if yquant < 1e-3 / EARTH_CIRCUMFERENCE_KM:
@@ -102,11 +102,11 @@ class UrSenseParser:
             lonqu += TAU
 
         return (
-            sensor.Reading(_rad_to_deg(abs(latqu)), 'N' if latqu >= 0 else 'S'),
-            sensor.Reading(_rad_to_deg(abs(lonqu)), 'E' if lonqu >= 0 else 'W'),
+            sensor.Reading(_rad_to_deg(abs(latqu)), "N" if latqu >= 0 else "S"),
+            sensor.Reading(_rad_to_deg(abs(lonqu)), "E" if lonqu >= 0 else "W"),
         )
 
-    def parse(self, data: str) -> 'Union[Dict[str, sensor.Reading], Type[None]]':
+    def parse(self, data: str) -> "Union[Dict[str, sensor.Reading], Type[None]]":
         """Parse the serial results output by a urSense 1.28 board as specified in the `user documentation v1.21 <https://gitlab.dynaikon.com/dynaikontrap/urSense/-/raw/5390d8a6e14e6b6ba625061637ba8d1961a15d2d/ursense-user-manual-v1.pdf>`_.
 
         The methodology is to start with a list of fields. Then process the first element of the list to figure out what type of reading it is and how many fields to consume. Format this appropriately and return it as a :class:`~Reading`. Repeat the process with the processed fields removed from the front of the list. Once the list reaches a length of zero, precessing the line is complete. For each :class:`~Reading` an attribute -- specified by the :data:`~DynAIkonTrap.ursense.structure.ursense_map` -- of the final :class:`~DynAIkonTrap.sensor.SensorLog` is set.
@@ -117,10 +117,10 @@ class UrSenseParser:
             Union[SensorLog, Type[None]]: The current data as a :class:`~DynAIkonTrap.sensor.SensorLog` or ``None`` if the input could not be parsed.
         """
 
-        fields = data.strip().split(' ')
+        fields = data.strip().split(" ")
 
         ## Preamble
-        if not fields[0].startswith('sel'):
+        if not fields[0].startswith("sel"):
             # This happens on start-up
             return None
 
@@ -129,20 +129,20 @@ class UrSenseParser:
         ## Sensor readings
         sensor_log = {}
         if len(fields) <= 4:
-            logger.debug('Sensor responded with no readings')
+            logger.debug("Sensor responded with no readings")
             return None
 
         while len(fields) > 0:
             field_info = ursense_map.get(fields[0])
             if field_info == None:
                 # Check if weekday or latitude
-                if fields[0] in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
+                if fields[0] in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
                     # Time parsing
-                    reading = sensor.Reading(' '.join(fields[:4]))
-                    sensor_log['GPS_TIME'] = reading
+                    reading = sensor.Reading(" ".join(fields[:4]))
+                    sensor_log["GPS_TIME"] = reading
                     fields = fields[4:]
 
-                elif fields[0].endswith(('S', 'N')):
+                elif fields[0].endswith(("S", "N")):
                     # Position parsing
                     lat = fields[0]
                     lon = fields[1]
@@ -152,22 +152,22 @@ class UrSenseParser:
 
                     latq, lonq = self._quantise_gps(lat, lon)
 
-                    sensor_log['GPS_POSITION_LATITUDE_RAW'] = lat
-                    sensor_log['GPS_POSITION_LONGITUDE_RAW'] = lon
-                    sensor_log['GPS_POSITION_LATITUDE_QUANTISED'] = latq
-                    sensor_log['GPS_POSITION_LONGITUDE_QUANTISED'] = lonq
+                    sensor_log["GPS_POSITION_LATITUDE_RAW"] = lat
+                    sensor_log["GPS_POSITION_LONGITUDE_RAW"] = lon
+                    sensor_log["GPS_POSITION_LATITUDE_QUANTISED"] = latq
+                    sensor_log["GPS_POSITION_LONGITUDE_QUANTISED"] = lonq
                     fields = fields[2:]
 
                 else:
-                    logger.warning('Unknown sensor field: `{}`'.format(fields[0]))
+                    logger.warning("Unknown sensor field: `{}`".format(fields[0]))
                     fields = fields[1:]
                 continue
 
             # Standard field
-            parse_result = reading_type_map[field_info['reading_type']]['parser'](
+            parse_result = reading_type_map[field_info["reading_type"]]["parser"](
                 fields
             )
-            sensor_log[field_info['var_name']] = parse_result.reading
+            sensor_log[field_info["var_name"]] = parse_result.reading
             fields = parse_result.remaining_fields
 
         return sensor_log

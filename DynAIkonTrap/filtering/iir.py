@@ -21,7 +21,7 @@ The IIR filter architecture provided in this module can be used to filter/smooth
 class IIR2Filter:
     """Second order IIR filter stage"""
 
-    def __init__(self, coeffs: 'numpy.ndarray'):
+    def __init__(self, coeffs: "numpy.ndarray"):
         """
         Args:
             coeffs (numpy.ndarray): SOS coefficients as returned by the utility functions from scipy
@@ -61,7 +61,7 @@ class IIR2Filter:
 class IIRFilter(object):
     """IIR filter constructed from IIR2Filters"""
 
-    def __init__(self, SOS: 'numpy.ndarray'):
+    def __init__(self, SOS: "numpy.ndarray"):
         """
         Creates a chain of 2nd order filter instances of IIR2Filter
 

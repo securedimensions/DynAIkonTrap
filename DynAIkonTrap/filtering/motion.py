@@ -56,18 +56,18 @@ class MotionFilter:
         wn = wn(settings.iir_cutoff_hz)
         # Ensure wn is capped to the necessary bounds
         if wn <= 0:
-            logger.error('IIR cutoff frequency too low (wn = {:.2f})'.format(wn))
+            logger.error("IIR cutoff frequency too low (wn = {:.2f})".format(wn))
             wn = 1e-10
         elif wn >= 1:
-            logger.error('IIR cutoff frequency too high (wn = {:.2f})'.format(wn))
+            logger.error("IIR cutoff frequency too high (wn = {:.2f})".format(wn))
             wn = 1 - 1e-10
 
         sos = signal.cheby2(
             settings.iir_order,
             settings.iir_attenuation,
             wn,
-            output='sos',
-            btype='lowpass',
+            output="sos",
+            btype="lowpass",
         )
         self.x_iir_filter = IIRFilter(sos)
         self.y_iir_filter = IIRFilter(sos)
@@ -85,8 +85,8 @@ class MotionFilter:
             float: SoTV for the given frame
         """
         magnitudes = np.sqrt(
-            np.square(motion_frame['x'].astype(np.float))
-            + np.square(motion_frame['y'].astype(np.float))
+            np.square(motion_frame["x"].astype(np.float))
+            + np.square(motion_frame["y"].astype(np.float))
         )
         filtered = np.where(
             magnitudes > self.threshold_small,
@@ -94,15 +94,15 @@ class MotionFilter:
             np.array(
                 (0, 0, 0),
                 dtype=[
-                    ('x', 'i1'),
-                    ('y', 'i1'),
-                    ('sad', 'u2'),
+                    ("x", "i1"),
+                    ("y", "i1"),
+                    ("sad", "u2"),
                 ],
             ),
         )
 
-        x_sum = sum(sum(filtered['x'].astype(int)))
-        y_sum = sum(sum(filtered['y'].astype(int)))
+        x_sum = sum(sum(filtered["x"].astype(int)))
+        y_sum = sum(sum(filtered["y"].astype(int)))
 
         x_sum = self.x_iir_filter.filter(x_sum)
         y_sum = self.y_iir_filter.filter(y_sum)
@@ -121,7 +121,6 @@ class MotionFilter:
         return self.run_raw(motion_frame) >= self.threshold_sotv
 
     def reset(self):
-        """Reset the internal IIR filter's memory to zero
-        """
+        """Reset the internal IIR filter's memory to zero"""
         self.x_iir_filter.reset()
         self.y_iir_filter.reset()

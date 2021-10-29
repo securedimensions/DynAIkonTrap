@@ -26,16 +26,22 @@ from PIL import Image
 
 from DynAIkonTrap.settings import AnimalFilterSettings
 
+
 @dataclass
 class ImageFormat(Enum):
     RGBA = 0
     RGB = 1
     JPEG = 2
-    
+
+
+@dataclass
+class NetworkInputSizes:
+    YOLOv4_TINY = (416, 416)
+
 
 class AnimalFilter:
-    """Animal filter stage to indicate if a frame contains an animal
-    """
+    """Animal filter stage to indicate if a frame contains an animal"""
+
     def __init__(self, settings: AnimalFilterSettings):
         """
         Args:
@@ -44,8 +50,8 @@ class AnimalFilter:
         self.threshold = settings.threshold
 
         self.model = cv2.dnn.readNet(
-            'DynAIkonTrap/filtering/yolo_animal_detector.weights',
-            'DynAIkonTrap/filtering/yolo_animal_detector.cfg',
+            "DynAIkonTrap/filtering/yolo_animal_detector.weights",
+            "DynAIkonTrap/filtering/yolo_animal_detector.cfg",
         )
         layer_names = self.model.getLayerNames()
         self.output_layers = [
@@ -67,12 +73,22 @@ class AnimalFilter:
                 cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
             )
         elif format is ImageFormat.RGBA:
-            decoded_image = np.asarray(Image.frombytes('RGBA', (416,416), image, 'raw', 'RGBA'))
+            decoded_image = np.asarray(
+                Image.frombytes(
+                    "RGBA", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGBA"
+                )
+            )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2RGB)
         elif format is ImageFormat.RGB:
-            decoded_image = np.asarray(Image.frombytes('RGB', (416,416), image, 'raw', 'RGB'))
+            decoded_image = np.asarray(
+                Image.frombytes(
+                    "RGB", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGB"
+                )
+            )
 
-        blob = cv2.dnn.blobFromImage(decoded_image, 1, (416, 416), (0, 0, 0))
+        blob = cv2.dnn.blobFromImage(
+            decoded_image, 1, NetworkInputSizes.YOLOv4_TINY, (0, 0, 0)
+        )
         blob = blob / 255  # Scale to be a float
         self.model.setInput(blob)
         output = self.model.forward(self.output_layers)

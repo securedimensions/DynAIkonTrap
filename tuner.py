@@ -88,9 +88,6 @@ settings.camera.resolution = (w, h)
 settings.camera.bitrate_bps = setter(
     "encoding bitrate bits/s (ADVANCED)", settings.camera.bitrate_bps
 )
-r_w = setter("raw resolution width (ADVANCED)", settings.camera.raw_resolution[0])
-r_h = setter("raw resolution height (ADVANCED)", settings.camera.raw_resolution[1])
-settings.camera.raw_resolution = (r_w, r_h)
 settings.camera.raw_framerate_divisor = setter(
     "raw framerate divisor (ADVANCED)", settings.camera.raw_framerate_divisor
 )

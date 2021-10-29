@@ -68,6 +68,7 @@ class MotionStatus(Enum):
     MOTION = 1
     UNKNOWN = 2
 
+
 class Label(Enum):
     """Categories into which a frame can fall"""
 
@@ -75,6 +76,7 @@ class Label(Enum):
     ANIMAL = 1
     UNKNOWN = 2
     CONTEXT = 3
+
 
 @dataclass
 class LabelledFrame:
@@ -85,6 +87,7 @@ class LabelledFrame:
     priority: float  # Higher means more likely to be animal
     label: Label = Label.UNKNOWN
     motion_status: MotionStatus = MotionStatus.UNKNOWN
+
 
 class Sequence:
     """Sequence of consecutive labelled frames. Frames may be "still" or contain motion. Smoothing is built in to smooth any animal detections over multiple frames. This can be done as the minimum number of frames in which an animal is likely to be present, can be reasoned about."""
@@ -111,21 +114,19 @@ class Sequence:
                 break
         else:
             self.labelled = True
-    
+
     def add_context(self):
-        """Add context labels to either side of the animal predictions. This should only be called just before the sequence is passed out of the motion labelled queue - ie after close_gaps() """
+        """Add context labels to either side of the animal predictions. This should only be called just before the sequence is passed out of the motion labelled queue - ie after close_gaps()"""
         first_animal_frame_index = self.get_first_animal_index()
         last_animal_frame_index = self.get_last_animal_index()
-        #add head context
+        # add head context
         stop = first_animal_frame_index
         start = max(first_animal_frame_index - self.context_len, 0)
         self._label(self._frames[start:stop], Label.CONTEXT)
-        #add tail context
-        start = last_animal_frame_index 
+        # add tail context
+        start = last_animal_frame_index
         stop = min(start + self.context_len, len(self._frames))
-        self._label(self._frames[start + 1: stop], Label.CONTEXT)
-    
-
+        self._label(self._frames[start + 1 : stop], Label.CONTEXT)
 
     def label_as_animal(self, frame: LabelledFrame):
         """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current sequence will also be labelled as animal according to the ``smoothing_len``
@@ -173,7 +174,12 @@ class Sequence:
             status (MotionStatus): status of motion detected in this frame
         """
         self._frames.append(
-            LabelledFrame(frame=frame, index=self._next_index, priority=motion_score, motion_status=status)
+            LabelledFrame(
+                frame=frame,
+                index=self._next_index,
+                priority=motion_score,
+                motion_status=status,
+            )
         )
         self._next_index += 1
 
@@ -190,7 +196,7 @@ class Sequence:
 
     def get_first_animal_index(self) -> int:
         """Finds and returns first index in the frame queue labelled as an animal
-        
+
         Returns:
             Index (int) of first animal frame in this sequence.
         """
@@ -200,10 +206,10 @@ class Sequence:
                 indx = i
                 break
         return indx
-    
+
     def get_last_animal_index(self) -> int:
         """Finds and returns last index in the frame queue labeled as an animal
-        
+
         Returns:
             Index (int) of last animal frame in this sequence.
         """
@@ -221,18 +227,22 @@ class Sequence:
             List[LabelledFrame]: List of animal frames from this sequence
         """
         return list(filter(lambda frame: frame.label == Label.ANIMAL, self._frames))
-        
+
     def get_animal_or_context_frames(self) -> List[LabelledFrame]:
         """Retrieve only the animal or context frames from the sequence
-        
+
         Returns:
             List[LabelledFrane]: List of animal or context frames from this sequence
         """
-        return list(filter(lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames))
-    
+        return list(
+            filter(
+                lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames
+            )
+        )
+
     def has_motion(self) -> bool:
         """Check if this sequence has a frame with motion status MOTION
-        
+
         Returns:
             Bool: True if a frame in this sequence has a status indicating motion, False otherwise"""
         for frame in self._frames:
@@ -268,11 +278,11 @@ class MotionLabelledQueue:
         self._animal_detector = animal_detector
         self._output_queue: QueueType[Frame] = Queue()
 
-        self._mean_time = Value('d')
+        self._mean_time = Value("d")
         with self._mean_time.get_lock():
             self._mean_time.value = 1 / 0.3
 
-        self._remaining_frames = Value('L')
+        self._remaining_frames = Value("L")
         with self._remaining_frames.get_lock():
             self._remaining_frames.value = 0
 
@@ -299,22 +309,20 @@ class MotionLabelledQueue:
     def end_motion_sequence(self):
         """End the current sequence and prepare the next one. It is safe to call this repeatedly for consecutive empty frames. Calling this releases the sequence to be processed by the animal filter."""
         current_len = len(self._current_sequence)
-        if current_len > 0: 
+        if current_len > 0:
             if self._current_sequence.has_motion():
                 self._queue.put(self._current_sequence)
                 logger.info(
-                'End of motion ({} frames will take <=~{:.0f}s; {:.0f}s cumulative)'.format(
-                    current_len,
-                    current_len * self._mean_time.value,
-                    self._remaining_frames.value * self._mean_time.value,
+                    "End of motion ({} frames will take <=~{:.0f}s; {:.0f}s cumulative)".format(
+                        current_len,
+                        current_len * self._mean_time.value,
+                        self._remaining_frames.value * self._mean_time.value,
+                    )
                 )
-            )
             self._current_sequence = Sequence(self._smoothing_len, self._context_len)
 
             with self._remaining_frames.get_lock():
                 self._remaining_frames.value += current_len
-
-            
 
     def _process_queue(self):
         while True:
@@ -331,7 +339,9 @@ class MotionLabelledQueue:
 
             frame = sequence.get_highest_priority()
             while frame:
-                is_animal = self._animal_detector.run(frame.frame.image, format=ImageFormat.JPEG)
+                is_animal = self._animal_detector.run(
+                    frame.frame.image, format=ImageFormat.JPEG
+                )
 
                 _t = time()
                 t_actual_framerate += _t - t_temp
@@ -357,14 +367,16 @@ class MotionLabelledQueue:
                     ) / 2
 
             logger.info(
-                'It took {:.1f}s to process {} frames ({} animal) => ~{:.2f}FPS'.format(
+                "It took {:.1f}s to process {} frames ({} animal) => ~{:.2f}FPS".format(
                     t,
                     len(sequence),
                     len(sequence.get_animal_frames()),
                     len(sequence) / t,
                 )
             )
-            output = list(map(lambda frame: frame.frame, sequence.get_animal_or_context_frames()))
+            output = list(
+                map(lambda frame: frame.frame, sequence.get_animal_or_context_frames())
+            )
             output += [None] if len(output) > 0 else []
             [self._output_queue.put(f) for f in output]
             self._idle.set()
