@@ -82,24 +82,27 @@ else:
 print("Camera settings")
 print("---------------")
 settings.camera.framerate = setter("framerate", settings.camera.framerate)
-w = setter("resolution width (ADVANCED)", settings.camera.resolution[0])
-h = setter("resolution height (ADVANCED)", settings.camera.resolution[1])
+w = setter("Resolution width (ADVANCED)", settings.camera.resolution[0])
+h = setter("Resolution height (ADVANCED)", settings.camera.resolution[1])
 settings.camera.resolution = (w, h)
 settings.camera.bitrate_bps = setter(
-    "encoding bitrate bits/s (ADVANCED)", settings.camera.bitrate_bps
+    "Encoding bitrate bits/s (ADVANCED)", settings.camera.bitrate_bps
 )
-settings.camera.raw_framerate_divisor = setter(
-    "raw framerate divisor (ADVANCED)", settings.camera.raw_framerate_divisor
-)
-settings.camera.io_buffer_size_s = setter(
-    "nr seconds to buffer stream IO access (ADVANCED)", settings.camera.io_buffer_size_s
-)
-raw_fmt = input("Raw stream image format: RGBA, or RGB (ADVANCED) [RGBA]> ")
-if raw_fmt == "RGBA":
-    settings.camera.raw_stream_image_format = RawImageFormat.RGBA.value
+if settings.pipeline.pipeline_variant == PipelineVariant.LOW_POWER.value:
+    settings.camera.raw_framerate_divisor = setter(
+        "Raw framerate divisor (ADVANCED)", settings.camera.raw_framerate_divisor
+    )
+    settings.camera.io_buffer_size_s = setter(
+        "Nr. seconds to buffer stream IO access (ADVANCED)",
+        settings.camera.io_buffer_size_s,
+    )
+    raw_fmt = input("Raw stream image format: RGBA, or RGB (ADVANCED) [RGBA]> ")
+    if raw_fmt == "RGB":
+        settings.camera.raw_stream_image_format = RawImageFormat.RGB.value
+    else:
+        settings.camera.raw_stream_image_format = RawImageFormat.RGBA.value
 else:
-    settings.camera.raw_stream_image_format = RawImageFormat.RGB.value
-
+    settings.camera.raw_stream_image_format = RawImageFormat.RGBA.value
 # Camera settings for later
 area_reality = setter("Visible animal area to trigger/m^2", 0.0064)
 subject_distance = setter("Expected distance of animal from sensor/m", 1.0)
@@ -147,20 +150,26 @@ settings.filter.animal.threshold = setter(
     "Animal confidence threshold (ADVANCED)", settings.filter.animal.threshold
 )
 
-print("----Motion queue")
-settings.filter.motion_queue.smoothing_factor = forced_setter(
-    "Smoothing factor",
-    settings.filter.motion_queue.smoothing_factor,
-    animal_frames / settings.camera.framerate,
-)
-settings.filter.motion_queue.max_sequence_period_s = setter(
+print("----Processing settings")
+if settings.pipeline.pipeline_variant == PipelineVariant.LEGACY.value:
+    settings.filter.processing.smoothing_factor = forced_setter(
+        "Smoothing factor",
+        settings.filter.processing.smoothing_factor,
+        animal_frames / settings.camera.framerate,
+    )
+settings.filter.processing.max_sequence_period_s = setter(
     "Max. motion sequence period/s (ADVANCED)",
-    settings.filter.motion_queue.max_sequence_period_s,
+    settings.filter.processing.max_sequence_period_s,
 )
-settings.filter.motion_queue.context_length_s = setter(
+settings.filter.processing.context_length_s = setter(
     "Motion context buffer length/s",
-    settings.filter.motion_queue.context_length_s,
+    settings.filter.processing.context_length_s,
 )
+if settings.pipeline.pipeline_variant == PipelineVariant.LOW_POWER.value:
+    settings.filter.processing.detector_fraction = setter(
+        "Fraction of event to process with neural network, range: [0-1]",
+        settings.filter.processing.detector_fraction,
+    )
 
 print("\nSensor settings")
 print("---------------")

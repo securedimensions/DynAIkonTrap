@@ -55,8 +55,8 @@ from time import time
 
 from DynAIkonTrap.camera import Frame
 from DynAIkonTrap.logging import get_logger
-from DynAIkonTrap.settings import MotionQueueSettings
-from DynAIkonTrap.filtering.animal import AnimalFilter, ImageFormat
+from DynAIkonTrap.settings import ProcessingSettings
+from DynAIkonTrap.filtering.animal import AnimalFilter, CompressedImageFormat
 
 logger = get_logger(__name__)
 
@@ -259,7 +259,7 @@ class MotionLabelledQueue:
 
     def __init__(
         self,
-        settings: MotionQueueSettings,
+        settings: ProcessingSettings,
         animal_detector: AnimalFilter,
         framerate: int,
     ):
@@ -340,7 +340,7 @@ class MotionLabelledQueue:
             frame = sequence.get_highest_priority()
             while frame:
                 is_animal = self._animal_detector.run(
-                    frame.frame.image, format=ImageFormat.JPEG
+                    frame.frame.image, format=CompressedImageFormat.JPEG
                 )
 
                 _t = time()

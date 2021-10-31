@@ -14,14 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provides a simplified interface to the :class:`PiCamera` library class. The :class:`Camera` class provides the :class:`Frame`\ s from the camera's stream via a queue. Initialising the :class:`Camera` takes care of setting up the necessary motion vector and image streams under the hood.
+This module handles detection and recording of motion events to disk. This interfaces with :class:`~DynAIkonTrap.custom_picamera.DynCamera` to buffer streams of vectors, H264 data and a raw stream. 
 
-A :class:`Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
+Motion detection is performed within :class:`MotionRAMBuffer` by filtering each motion vectors for each frame using :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. When motion is detected, the buffers are emptied to a location on disk for further processing. 
+
+An output queue of emptied buffer directories is accessible via the output of :class:`CameraToDisk`. 
 """
 from collections import deque
-from ctypes import resize, sizeof
 from logging import DEBUG, exception
-from math import ceil
 from os import nice
 from io import open
 from queue import Empty
@@ -33,13 +33,7 @@ from multiprocessing import Event, Queue
 from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from typing import Tuple
-from random import randint
 from threading import Thread
-import picamera
-from picamera import camera
-
-from DynAIkonTrap.filtering.animal import AnimalFilter
-
 
 try:
     from picamera import PiCamera
@@ -81,7 +75,12 @@ class MotionData:
 
 
 class MotionRAMBuffer(PiMotionAnalysis):
-    """A class for ushering motion vectors to the motion detector and into RAM and disk storage."""
+    """This class buffers motion vectors in RAM, runs a motion filter on each set of frame vectors and deposits buffers to disk when an event is required to be saved.
+
+    Buffering is implemented by making use of two :class:`CircularIO` ring buffers - refered to as active and inactive streams. The active stream is being written when the camera is on and producing motion vectors. When saving is requested, the active and inactive streams are swapped, and the new inactive stream is written to disk and it's contents deleted. Motion vectors to be processed are added to an internal process queue, this ensures that the motion detector may skip over processing some vectors if filtering is taking too long per vector frame.
+
+    Motion presence is accessible via a flag variable, is_motion.
+    """
 
     def __init__(
         self,
@@ -90,26 +89,37 @@ class MotionRAMBuffer(PiMotionAnalysis):
         seconds: float,
         context_len_s: float,
     ) -> None:
+        """Initialiser, creates two instances of :class:`CircularIO`. Each sized to be large enough to hold several seconds (configurable) of motion vector data.
+
+        Args:
+            camera (DynCamera): Camera instance buffering from
+            settings (MotionFilterSettings): Settings for configuration of the motion filter.
+            seconds (float): Number of seconds of motion vectors to buffer.
+            context_len_s (float): Context and tail length for the detections.
+        """
         (width, height) = camera.resolution
         (self._rows, self._cols) = MotionRAMBuffer.calc_rows_cols(width, height)
-        self._element_size = MotionRAMBuffer.calc_motion_element_size(
+        self._element_size: int = MotionRAMBuffer.calc_motion_element_size(
             self._rows, self._cols
         )
-        buff_len = seconds * camera.framerate
-        self._active_stream = CircularIO(self._element_size * buff_len)
-        self._inactive_stream = CircularIO(self._element_size * buff_len)
-        self._bytes_written = 0
+        self._active_stream: CircularIO = CircularIO(
+            self._element_size * seconds * camera.framerate
+        )
+        self._inactive_stream: CircularIO = CircularIO(
+            self._element_size * seconds * camera.framerate
+        )
+        self._bytes_written: int = 0
         self._framerate = camera.framerate
         self._motion_filter = MotionFilter(settings, camera.framerate)
-        self._context_len_s = context_len_s
+        self._context_len_s: float = context_len_s
         self._proc_queue = deque([], maxlen=100)
         self._target_time: float = 1.0 / (2.0 * camera.framerate)
-        self._is_motion = False
-        self._threshold_sotv = settings.sotv_threshold
+        self.is_motion: bool = False
+        self._threshold_sotv: float = settings.sotv_threshold
         super().__init__(camera)
 
         self._proc_thread = Thread(
-            target=self.process_queue, name="motion process thread", daemon=True
+            target=self._process_queue, name="motion process thread", daemon=True
         )
         self._proc_thread.start()
 
@@ -121,7 +131,10 @@ class MotionRAMBuffer(PiMotionAnalysis):
         """
         self._proc_queue.append(motion)
 
-    def process_queue(self):
+    def _process_queue(self):
+        """This function processes vectors on the internal process queue to filter for motion. An aim is to compute motion detection within half a frame interval, as defined by the field _target_time. On some hardware platforms and some resolutions, detection time may go over this budget. In these cases, this function skips computing the next few vector frames to make up for lost time.
+        In any case, this function writes a timestamp, motion score and motion vector data to the active stream. If the motion score has not been computed, a value of -1 is written instead.
+        """
         nice(0)
         skip_frames = 0
         count_frames = 0
@@ -134,7 +147,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
                 if count_frames >= skip_frames:
                     start = time()
                     motion_score = self._motion_filter.run_raw(motion_frame)
-                    self._is_motion = motion_score > self._threshold_sotv
+                    self.is_motion = motion_score > self._threshold_sotv
                     end = time()
                     skip_frames = round((end - start) / self._target_time)
                     count_frames = 0
@@ -145,24 +158,18 @@ class MotionRAMBuffer(PiMotionAnalysis):
                     + bytearray(motion_frame)
                 )
                 self._bytes_written += self._active_stream.write(motion_bytes)
+                sleep(0.1)
 
             except:
                 sleep(0.1)
                 pass
 
-    def compute_used_space(self) -> float:
-        """computes the fraction of the active ring buffer filled up thus far
-
-        Returns:
-            float: fraction representing full space in ring buffer
-        """
-        return float(self._bytes_written / self._active_stream.size)
-
     def write_inactive_stream(self, filename: Path, is_start=False):
-        """write the inactive buffer to file
+        """Dump the inactive stream to file, then delete it's contents, will append to existing files.
 
         Args:
             filename (Path): path to file
+            is_start (bool): indicates if this buffer starts a new motion event
         """
         if is_start:
             current_pos = self._inactive_stream.seek(1)
@@ -190,6 +197,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self.clear_inactive_stream()
 
     def clear_inactive_stream(self):
+        """Deletes data in the inactive stream, sets stream position to 0."""
         self._inactive_stream.seek(0)
         self._inactive_stream.truncate()
 
@@ -199,20 +207,9 @@ class MotionRAMBuffer(PiMotionAnalysis):
             self._inactive_stream,
             self._active_stream,
         )
-        self._bytes_written = 0
-
-    def get_motion_flag(self) -> bool:
-        """poll the observed motion flag, resets flag to false after polling
-
-        Returns:
-            bool: motion flag, true if motion observed
-        """
-        ret = self._is_motion
-        self._is_motion = False
-        return ret
 
     def calc_rows_cols(width: int, height: int) -> Tuple[int, int]:
-        """calculate the dimensions of motion vectors given a resolution
+        """Calculates the dimensions of motion vectors given a resolution
 
         Args:
             width (int): resolution width in pixels
@@ -226,7 +223,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         return (rows, cols)
 
     def calc_motion_element_size(rows: int, cols: int) -> int:
-        """calculates the size of a single motion element in the ring buffer
+        """Calculates the size of a single motion element in the ring buffer
 
         Args:
             rows (int): motion vector row dimension
@@ -241,44 +238,37 @@ class MotionRAMBuffer(PiMotionAnalysis):
 
 
 class VideoRAMBuffer:
-    """class for storing video frames in RAM while motion detection is evaluated. Frame storage is alternated between two ring-buffers of type `PiCameraCircularIO`."""
+    """Class for storing video frames in RAM while motion detection is evaluated.
+
+    Buffering is implemented by making use of two :class:`PiCameraCircularIO` ring buffers - refered to as active and inactive streams. The active stream is being written when the camera is on and producing frames. When saving is requested, the active and inactive streams are swapped, and the new inactive stream is written to disk and it's contents deleted.
+    """
 
     def __init__(self, camera: DynCamera, splitter_port: int, size: int) -> None:
         """Initialise stream object.
 
         Args:
-            camera (DynCamera): Picamera instance, used to initialise underlying buffers
-            splitter_port (int): Splitter port number, range [0-3], indicates port for connection to underlying stream
-            size (int): [description]. Maximum size of a ring buffer, measured in bytes
+            camera (DynCamera): Camera instance
+            splitter_port (int): Splitter port number, range [1-3], indicates PiCamera port for connection to underlying stream
+            size (int): Maximum size of a ring buffer, measured in bytes
 
         """
-        self._active_stream = PiCameraCircularIO(
+        self._active_stream: PiCameraCircularIO = PiCameraCircularIO(
             camera, size=size, splitter_port=splitter_port
         )
-        self._inactive_stream = PiCameraCircularIO(
+        self._inactive_stream: PiCameraCircularIO = PiCameraCircularIO(
             camera, size=size, splitter_port=splitter_port
         )
         self._bytes_written: int = 0
         self._framerate = camera.framerate
         self._frac_full: float = 0.0
-        self.compute_used_space()
 
     def write(self, buf):
         """Write a frame buffer to the active stream
 
         Args:
-            buf ([type]): frame buffer
+            buf : frame buffer
         """
         self._bytes_written += self._active_stream.write(buf)
-
-    def compute_used_space(self) -> float:
-        """computes the fraction of the active ring buffer filled up thus far
-
-        Returns:
-            float: fraction representing full space in ring buffer
-        """
-        self._frac_full = self._bytes_written / self._active_stream.size
-        return self._frac_full
 
     def switch_stream(self):
         """switch the active and inactive streams"""
@@ -287,10 +277,13 @@ class VideoRAMBuffer:
             self._inactive_stream,
             self._active_stream,
         )
-        self._bytes_written = 0
-        self.compute_used_space()
 
     def write_inactive_stream(self, filename: Path):
+        """Dump the inactive stream to file, then delete it's contents, will append to existing files.
+
+        Args:
+            filename (Path): path to file
+        """
         with open(filename, "ab") as output:
             while True:
                 buf = self._inactive_stream.read1()
@@ -300,19 +293,31 @@ class VideoRAMBuffer:
         self.clear_inactive_stream()
 
     def clear_inactive_stream(self):
+        """Deletes the inactive stream"""
         self._inactive_stream.seek(0)
         self._inactive_stream.clear()
 
 
 class H264RAMBuffer(VideoRAMBuffer):
+    """This class inherits from :class:`~DynAIkonTrap.camera_to_disk.VideoRAMBuffer` to specialise for H264 image encoded frames."""
+
     def __init__(self, context_length_s, *args, **kwargs) -> None:
         self._context_length_s = context_length_s
         super(H264RAMBuffer, self).__init__(*args, **kwargs)
 
     def write_inactive_stream(self, filename: Path, is_start=False):
+        """Dump the inactive stream to file, then delete it's contents, will append to existing files.
+
+        May be used to start an event stream if is_start is set True. In this case, this function will recall frames from the buffer which occupy the context time. When a stream is started, this function searches for the nearest SPS header to start the H264 encoded stream. As a result, the start index may not be exactly equal to context start time index. The affect of this can be limited by increasing intra-frame frequency - at the expense of stream compression ratio.
+
+        Args:
+            filename (Path): path to write the stream to
+            is_start (bool, optional): Indicates if this should start a new event stream on disk. Defaults to False.
+        """
         if is_start:
             try:
                 lst_frames = list(self._inactive_stream.frames)
+                # get context index
                 context_index = int(
                     round(
                         max(
@@ -322,6 +327,7 @@ class H264RAMBuffer(VideoRAMBuffer):
                         )
                     )
                 )
+                # get sps frame indexes
                 sps_frames = list(
                     filter(
                         lambda element: element[1].frame_type
@@ -333,10 +339,12 @@ class H264RAMBuffer(VideoRAMBuffer):
                     get_closest_frame = lambda frame_idx, sps_frames: min(
                         sps_frames, key=lambda element: abs(element[0] - context_index)
                     )[1]
+                    # scroll to start frame, sps frame closest to context index
                     start_frame = get_closest_frame(context_index, sps_frames)
                     self._inactive_stream.seek(start_frame.position)
                     return super().write_inactive_stream(filename)
                 else:
+                    # if no sps frames, discard the stream
                     self.clear_inactive_stream()
             except Exception as e:
                 print(e)
@@ -348,6 +356,8 @@ class H264RAMBuffer(VideoRAMBuffer):
 
 
 class RawRAMBuffer(VideoRAMBuffer):
+    """This class inherits from :class:`~DynAIkonTrap.camera_to_disk.VideoRAMBuffer` to specialise for raw format image frames."""
+
     def __init__(self, context_length_s, camera: DynCamera, *args, **kwargs) -> None:
         self._context_length_s = context_length_s
 
@@ -355,6 +365,14 @@ class RawRAMBuffer(VideoRAMBuffer):
         self._raw_framerate = self._framerate // camera.raw_divisor
 
     def write_inactive_stream(self, filename: Path, is_start=False):
+        """Dump the inactive stream to file, then delete it's contents, will append to existing files.
+
+        May be used to start an event stream if is_start is set True. In this case, this function will recall frames from the buffer which occupy the context time.
+
+        Args:
+            filename (Path): path to write the stream to
+            is_start (bool, optional): Indicates if this should start a new event stream on disk. Defaults to False.
+        """
         if is_start:
             lst_frames = list(self._inactive_stream.frames)
             context_index = int(
@@ -388,7 +406,12 @@ class DirectoryMaker:
         self._event_counter = 0
 
     def get_event(self) -> Tuple[Path, str]:
-        """Searches for a new directory path for motion event until a new one is found"""
+        """Searches for a new directory path for motion event until an unoccupied one is found
+
+
+        Returns:
+            Tuple[Path, str]: Event directory
+        """
 
         ret_path, ret_str = self.new_event()
         while ret_path.exists():
@@ -406,7 +429,7 @@ class DirectoryMaker:
 
 
 class CameraToDisk:
-    """Wraps picamera functionality to stream motion events to disk."""
+    """Wraps :class:`~DynAIkonTrap.custom_picamera.DynCamera` functionality to stream motion events to disk."""
 
     def __init__(
         self,
@@ -414,20 +437,22 @@ class CameraToDisk:
         writer_settings: WriterSettings,
         filter_settings: FilterSettings,
     ):
-        """Takes a :class:`~DynAIkonTrap.settings.CameraSettings` object to initialise and start the camera hardware.
+        """Initialiser, creates instance of camera and buffers for catching it's output.
 
         Args:
             camera_settings (CameraSettings): settings object for camera construction
             writer_settings (WriterSettings): settings object for writing out events
+            filter_settings (FilterSettings): settings object for filter parameters
         """
         self.resolution = camera_settings.resolution
         self._buffer_secs = camera_settings.io_buffer_size_s
         self.bitrate = camera_settings.bitrate_bps
         self._raw_stream_image_format = camera_settings.raw_stream_image_format
         self.bits_per_pixel_raw = 0
-        if camera_settings.raw_stream_image_format == RawImageFormat.RGBA.value:
+        self.raw_image_format = RawImageFormat(camera_settings.raw_stream_image_format)
+        if self.raw_image_format is RawImageFormat.RGBA:
             self.bits_per_pixel_raw = 4
-        elif camera_settings.raw_stream_image_format == RawImageFormat.RGB.value:
+        elif self.raw_image_format is RawImageFormat.RGB:
             self.bits_per_pixel_raw = 3
         self.raw_frame_dims = NetworkInputSizes.YOLOv4_TINY
         self.framerate = camera_settings.framerate
@@ -438,21 +463,21 @@ class CameraToDisk:
         )
 
         self._on = True
-        self._context_length_s = filter_settings.motion_queue.context_length_s
+        self._context_length_s = filter_settings.processing.context_length_s
 
         self._maximum_event_length_s: float = (
-            filter_settings.motion_queue.max_sequence_period_s
+            filter_settings.processing.max_sequence_period_s
         )
 
         self._output_queue: QueueType[str] = Queue()
         self._h264_buffer: H264RAMBuffer = H264RAMBuffer(
-            filter_settings.motion_queue.context_length_s,
+            filter_settings.processing.context_length_s,
             self._camera,
             splitter_port=1,
             size=(camera_settings.bitrate_bps * camera_settings.io_buffer_size_s) // 8,
         )
         self._raw_buffer: RawRAMBuffer = RawRAMBuffer(
-            filter_settings.motion_queue.context_length_s,
+            filter_settings.processing.context_length_s,
             self._camera,
             splitter_port=2,
             size=(
@@ -470,7 +495,7 @@ class CameraToDisk:
             self._camera,
             filter_settings.motion,
             self._buffer_secs,
-            filter_settings.motion_queue.context_length_s,
+            filter_settings.processing.context_length_s,
         )
         self._directory_maker: DirectoryMaker = DirectoryMaker(
             Path(writer_settings.path)
@@ -481,6 +506,10 @@ class CameraToDisk:
         self._record_proc.start()
 
     def record(self):
+        """Function records streams from the camera to RAM buffers. When motion is detected, buffers are emptied in three stages. 1) motion occurs, initial buffers are emptied to fill context time. Here an event is started on disk. 2) while motion continues and the length of the event is smaller than the max. event length continue writing to disk and swapping buffers as they become full. 3) motion has ended, continue recording for a trail-off period equal to the context length. Finally switch buffers and empty one last time.
+
+        When a motion event finishes, it's saved directory is added to the output queue.
+        """
         nice(0)
         current_path = self._directory_maker.get_event()[0]
         self._camera.start_recording(
@@ -503,8 +532,8 @@ class CameraToDisk:
             while self._on:
                 self._camera.wait_recording(1)
 
-                if self._motion_buffer._is_motion:  # motion is detected!
-                    print("motion detected!")
+                if self._motion_buffer.is_motion:  # motion is detected!
+                    logger.info("Motion detected, emptying buffers to disk.")
                     event_dir = current_path
                     motion_start_time = time()
                     last_buffer_empty_t = time()
@@ -512,10 +541,10 @@ class CameraToDisk:
 
                     # continue writing to buffers while motion
                     while (
-                        self._motion_buffer._is_motion
+                        self._motion_buffer.is_motion
                         and (time() - motion_start_time) < self._maximum_event_length_s
                     ):
-                        # check if buffers are getting near-full
+                        # check if buffers are getting near-full, to keep all three buffers in sync this is done by simply checking the time.
                         if (time() - last_buffer_empty_t) > (0.75 * self._buffer_secs):
                             last_buffer_empty_t = time()
                             self.empty_all_buffers(current_path, start=False)
@@ -525,6 +554,11 @@ class CameraToDisk:
                     # empty buffers
                     self.empty_all_buffers(current_path, start=False)
                     self._output_queue.put(event_dir)
+                    logger.info(
+                        "Motion ended, total event length: {:.2f}secs".format(
+                            time() - motion_start_time
+                        )
+                    )
 
                     current_path = self._directory_maker.get_event()[0]
         finally:
@@ -539,6 +573,12 @@ class CameraToDisk:
             raise Empty
 
     def empty_all_buffers(self, current_path: Path, start: bool):
+        """Switches and empties all three buffers. Switching is performed near-simultaneously. Writing may take longer.
+
+        Args:
+            current_path (Path): directory to write events
+            start (bool): True if start of a new motion event, False otherwise.
+        """
         # switch all buffers first
         self._h264_buffer.switch_stream()
         self._raw_buffer.switch_stream()
@@ -552,26 +592,4 @@ class CameraToDisk:
         )
         self._motion_buffer.write_inactive_stream(
             filename=current_path.joinpath("clip_vect.dat"), is_start=start
-        )
-
-    def empty_h264_buffer(self, current_path: Path, start: bool):
-        if start:
-            print("----looking for sps----")
-            self._h264_buffer.write_inactive_stream(
-                current_path.joinpath("clip.h264"),
-                frametype=PiVideoFrameType.sps_header,
-            )
-        else:
-            self._h264_buffer.write_inactive_stream(
-                current_path.joinpath("clip.h264"), frametype=PiVideoFrameType.frame
-            )
-
-    def empty_raw_buffer(self, current_path: Path):
-        self._raw_buffer.write_inactive_stream(
-            current_path.joinpath("clip.dat"), frametype=PiVideoFrameType.frame
-        )
-
-    def empty_motion_buffer(self, current_path: Path):
-        self._motion_buffer.write_inactive_stream(
-            current_path.joinpath("clip_vect.dat")
         )

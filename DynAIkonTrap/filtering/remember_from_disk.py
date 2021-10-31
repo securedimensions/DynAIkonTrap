@@ -14,11 +14,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the :class:`Filter` reads from a :class:`~DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals.
+This module interfaces saved events on the disk to the remainder of the event filtering pipeline. It is intended that event directories are read in as a queue from :class:`~DynAIkonTrap.camera_to_disk.CameraToDisk` and loaded into memory in turn by :class:`~DynAIkonTrap.filtering.remember_from_disk.EventRememberer`. 
 
-Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+Events are loaded with into instances of :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData`.
 
-The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
+The output is accessible via a queue. 
 """
 from dataclasses import dataclass
 from os import nice
@@ -59,6 +59,7 @@ class EventRememberer:
         self._output_queue: QueueType[EventData] = Queue(maxsize=10)
         self._input_queue = read_from
         self._raw_dims = read_from.raw_frame_dims
+        self.raw_image_format = read_from.raw_image_format
         self._raw_bpp = read_from.bits_per_pixel_raw
         self.framerate = read_from.framerate
         width, height = read_from.resolution

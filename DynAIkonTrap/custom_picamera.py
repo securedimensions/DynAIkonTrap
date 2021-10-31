@@ -14,7 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provides a interface to customisations on classes in the :class:`PiCamera` library. The :class:`Camera` class provides the :class:`Frame`\ s from the camera's stream via a queue. 
+Provides a interface to customisations on classes in the :class:`PiCamera` library. 
+
+The :class:`DynRawEncoder` inherits from :class:`PiRawVideoEncoder` to create a down-sampled raw stream. Down-sampling may be set using a divisor parameter.
+The :class:`DynCamera` inherits from :class:`PiCamera` to instanciate :class:`DynRawEncoder` when raw stream encoding is requested.
 """
 
 from picamera import PiCamera, PiRawVideoEncoder, PiVideoFrameType, PiCookedVideoEncoder
@@ -28,20 +31,20 @@ class DynRawEncoder(PiRawVideoEncoder):
     """A custom raw video encoder which outputs a divided number of frames. This class inherits from PiRawVideoEncoder."""
 
     def __init__(self, *args, **kwargs):
-        """Initalise DynRawEncoder, by default the divisor is set to 1"""
+        """Initaliser, by default the divisor is set to 1"""
         self.divisor = 1
         self._count = 0
         super(DynRawEncoder, self).__init__(*args, **kwargs)
 
     def _callback_write(self, buf, key=PiVideoFrameType.frame):
-        """Override _callback_write() function to not encode frames which do not land on a divisor index."""
+        """Override :func:`_callback_write()` function to not encode frames which do not land on a divisor index."""
         self._count += 1
         if (self._count % self.divisor) == 0:
             return super()._callback_write(buf, key=key)
 
 
 class DynCamera(PiCamera):
-    """Extension of PiCamera class which makes use of DynRawEncoder for raw encoder formats"""
+    """Extension of :class:`PiCamera` class which makes use of :class:`DynRawEncoder` for raw encoder formats"""
 
     def __init__(self, raw_divisor=1, *args, **kwargs):
         self.raw_divisor = raw_divisor

@@ -14,36 +14,41 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-A simple interface to the frame animal filtering pipeline is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the :class:`Filter` reads from a :class:`~DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals.
+A simple interface to the frame animal filtering pipelines is provided by this module. It encapsulates both motion- and image-based filtering as well as any smoothing of this in time. Viewed from the outside the :class:`Filter` may read from :class:`~DynAIkonTrap.camera.Camera`'s output and in turn outputs only frames containing animals. Alternatively, :class:`Filter` may read from :class:`~DynAIkonTrap.filtering.remember_from_disk.EventRememberer` to process motion events stored on disk. As a result, the filter may operate in two modes: a) filter BY_FRAME, b) filter BY_EVENT.
 
-Internally frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
+In the filter BY_FRAME mode, frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
 
-The output is accessible via a queue, which mitigates problems due to the burstiness of this stage's output and also allows the pipeline to be run in a separate process.
+In the filter BY_EVENT mode, events are loaded from the instance of :class:`~DynAIkonTrap.filtering.remember_from_disk.EventRememberer` and processed in the within :func:`_process_event()`. This method employs a spiral-out inference strategy which checks each frame for animal detection (starting in the center frame, working outwards) animal detection is performed by applying :class:`~DynAIkonTrap.filtering.animal.AnimalFilter`. 
+
+In both modes, the output is accessible via a queue. BY_FRAME mode produces a queue of frames containing animals, BY_EVENT mode produces a queue of events containing animal frames. This allows the pipeline to be run in a separate process.
 """
 from multiprocessing import Process, Queue
 from multiprocessing.context import set_spawning_popen
 from multiprocessing.queues import Queue as QueueType
 from queue import Empty
 from os import nice
-from subprocess import call
+from subprocess import CalledProcessError, call, check_call
 from time import sleep
 from enum import Enum
 from typing import Union
+from numpy import round, linspace
 
 from DynAIkonTrap.camera import Frame, Camera
 from DynAIkonTrap.filtering import motion_queue
-from DynAIkonTrap.filtering.animal import AnimalFilter, ImageFormat
+from DynAIkonTrap.filtering.animal import AnimalFilter
 from DynAIkonTrap.filtering.motion import MotionFilter
 from DynAIkonTrap.filtering.motion_queue import MotionLabelledQueue
 from DynAIkonTrap.filtering.motion_queue import MotionStatus
 from DynAIkonTrap.filtering.remember_from_disk import EventData, EventRememberer
 from DynAIkonTrap.logging import get_logger
-from DynAIkonTrap.settings import FilterSettings
+from DynAIkonTrap.settings import FilterSettings, RawImageFormat
 
 logger = get_logger(__name__)
 
 
 class FilterMode(Enum):
+    """A class to configure the mode the filter operates in"""
+
     BY_FRAME = 0
     BY_EVENT = 1
 
@@ -83,6 +88,8 @@ class Filter:
 
         elif isinstance(read_from, EventRememberer):
             self.mode = FilterMode.BY_EVENT
+            self._event_fraction = settings.processing.detector_fraction
+            self._raw_image_format = read_from.raw_image_format
             self._output_queue: QueueType[EventData] = Queue()
             self._usher = Process(target=self._handle_input_events, daemon=True)
             self._usher.start()
@@ -90,10 +97,10 @@ class Filter:
         logger.debug("Filter started")
 
     def get(self):
-        """Retrieve the next animal `Frame` from the filter pipeline's output
+        """Retrieve the next animal `Frame` or animal `EventData` from the filter pipeline's output.
 
         Returns:
-            Frame: An animal frame
+            Next: An animal frame or event
         """
         if self.mode == FilterMode.BY_FRAME:
             return self._motion_labelled_queue.get()
@@ -105,6 +112,7 @@ class Filter:
         self._usher.join()
 
     def _handle_input_frames(self):
+        """Process input queue as a list of frames: BY_FRAME filter mode."""
         while True:
 
             try:
@@ -127,31 +135,74 @@ class Filter:
                 self._motion_labelled_queue.put(frame, -1.0, MotionStatus.STILL)
 
     def _handle_input_events(self):
-        nice(4)
+        """Process input queue as a list of events: BY_EVENT filter mode."""
         while True:
             try:
                 event = self._input_queue.get()
-                # result = self._process_event(event)
-                self._output_queue.put(event)
-                # if not result:
-                #     self._delete_event(event)
-                # else:
-                #     self._output_queue.put(event)
+                result = self._process_event(event)
+                # self._output_queue.put(event)
+                if not result:
+                    logger.info("No Animal detected, deleting event from disk...")
+                    self._delete_event(event)
+                else:
+                    logger.info("Animal detected, save output video...")
+                    self._output_queue.put(event)
 
-            except Exception as e:
-                print(e)
-                sleep(1)
+            except Empty:
+                logger.error("Input events queue empty")
                 continue
 
     def _process_event(self, event: EventData) -> bool:
-        lst_indx_frames = list(enumerate(event.raw_raster_frames))
-        middle_idx = len(lst_indx_frames) // 2
-        lst_indx_frames.sort(key=lambda x: abs(middle_idx - x[0]))
-        for index, frame in lst_indx_frames:
-            is_animal = self._animal_filter.run(frame, format=ImageFormat.RGBA)
-            if is_animal:
-                return True
+        """Processes a given :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to determine if it contains an animal. This is achieved by running the saved raw image stream through the animal detector. Detection is performed in a spiral-out pattern, starting at the image in the middle of the event and moving out towards the edges while an animal has not been detected. When an animal detection occurs, this function returns True, this function returns false when the spiral is completed and no animals have been detected.
+
+        A parameter to choose a spiral step size may be declared within :class:`~DynAIkonTrap.settings.ProcessingSettings`, detector_fraction. When set to 1.0, every event image is evaluated in the worst case. Fractional values indicate a number of frames to process per event. The special case, 0.0 evaluates the centre frame only.
+        Args:
+            event (EventData): Instance of :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to filter for animal.
+
+        Returns:
+            bool: True if event contains an animal, False otherwise.
+        """
+        frames = list(event.raw_raster_frames)
+        middle_idx = len(frames) // 2
+        if self._event_fraction <= 0:
+            # run detector on middle frame only
+            frame = frames[middle_idx]
+            return self._animal_filter.run(frame, format=self._raw_image_format)
+        else:
+            # get evenly spaced frames throughout the event
+            nr_elements = int(round(len(frames) * self._event_fraction))
+            indices = [
+                int(round(index)) for index in linspace(0, len(frames) - 1, nr_elements)
+            ]
+            lst_indx_frames_from_centre = []
+            for index in indices:
+                lst_indx_frames_from_centre.append((index, frames[index]))
+            # sort in ordering from middle frame
+            lst_indx_frames_from_centre.sort(key=lambda x: abs(middle_idx - x[0]))
+            # process frames from middle, spiral out
+            for (_, frame) in lst_indx_frames_from_centre:
+                is_animal = self._animal_filter.run(
+                    frame, format=self._raw_image_format
+                )
+                if is_animal:
+                    return True
         return False
 
     def _delete_event(self, event: EventData):
-        call(["rm -r {}".format(event.dir)], shell=True)
+        """Deletes an event on disk.
+
+        Args:
+            event (EventData): Event to be deleted.
+        """
+
+        try:
+            check_call(
+                ["rm -r {}".format(event.dir)],
+                shell=True,
+            )
+        except CalledProcessError as e:
+            logger.error(
+                "Problem deleting event with directory: {}. Code: {}".format(
+                    event.dir, e.returncode
+                )
+            )

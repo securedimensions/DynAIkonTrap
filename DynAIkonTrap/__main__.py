@@ -65,9 +65,11 @@ print("You can halt execution with <Ctrl>+C anytime\n")
 settings = load_settings()
 getLogger().setLevel(settings.logging.level)
 if settings.pipeline.pipeline_variant == PipelineVariant.LEGACY.value:
+    # Legacy pipeline mode
     camera = Camera(settings=settings.camera)
     filters = Filter(read_from=camera, settings=settings.filter)
 else:
+    # Low-powered pipeline mode
     camera = CameraToDisk(
         camera_settings=settings.camera,
         writer_settings=settings.output,

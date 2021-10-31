@@ -26,7 +26,7 @@ from pathlib import Path
 from os import listdir, nice
 from os.path import join
 from json import dump, dumps
-from subprocess import call
+from subprocess import CalledProcessError, call, check_call
 
 from requests import post
 from requests.exceptions import HTTPError, ConnectionError
@@ -285,14 +285,21 @@ class AbstractOutput(metaclass=ABCMeta):
 
                 start_time = event.start_timestamp
                 file = NamedTemporaryFile(suffix=self._video_suffix)
-                call(
-                    [
-                        "nice -n 5 ffmpeg -framerate {} -i {} -c copy {} -y".format(
-                            self.framerate, join(event.dir, "clip.h264"), file.name
+                try:
+                    check_call(
+                        [
+                            "nice -n 5 ffmpeg -hide_banner -loglevel error -framerate {} -probesize 42M -i {} -c copy {} -y".format(
+                                self.framerate, join(event.dir, "clip.h264"), file.name
+                            )
+                        ],
+                        shell=True,
+                    )
+                except CalledProcessError as e:
+                    logger.error(
+                        "Ffmpeg error! return code: {}. Event: {}".format(
+                            e.returncode, event.dir
                         )
-                    ],
-                    shell=True,
-                )
+                    )
                 caption = caption_generator.generate_sensor_json(
                     [event.start_timestamp]
                 )
