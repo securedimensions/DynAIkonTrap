@@ -16,6 +16,7 @@
 ### Added
 - Check for `settings.json` version vs. DynAIkonTrap version in case settings are copied from one trap to another
 - Added support for multiple output video codecs and settings to choose between them
+- Pillow to requirements.txt easiest way to load raw images as far as I can tell. If this can be done with OpenCV it would be nicer. 
 
 
 ### Fixed
