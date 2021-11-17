@@ -18,7 +18,7 @@ A simple interface to the frame animal filtering pipelines is provided by this m
 
 In the filter BY_FRAME mode, frames are first analysed by the :class:`~DynAIkonTrap.filtering.motion.MotionFilter`. Frames with motion score and label indicating motion, are added to a :class:`~DynAIkonTrap.filtering.motion_queue.MotionLabelledQueue`. Within the queue the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage is applied with only the animal frames being returned as the output of this pipeline.
 
-In the filter BY_EVENT mode, events are loaded from the instance of :class:`~DynAIkonTrap.filtering.remember_from_disk.EventRememberer` and processed in the within :func:`_process_event()`. This method employs a spiral-out inference strategy which checks each frame for animal detection (starting in the center frame, working outwards) animal detection is performed by applying :class:`~DynAIkonTrap.filtering.animal.AnimalFilter`. 
+In the filter BY_EVENT mode, events are loaded from the instance of :class:`~DynAIkonTrap.filtering.remember_from_disk.EventRememberer` and processed within :func:`_process_event()`. This method employs a spiral-out inference strategy which checks each frame for animal detection (starting in the center frame, working outwards) animal detection is performed by applying :class:`~DynAIkonTrap.filtering.animal.AnimalFilter`. 
 
 In both modes, the output is accessible via a queue. BY_FRAME mode produces a queue of frames containing animals, BY_EVENT mode produces a queue of events containing animal frames. This allows the pipeline to be run in a separate process.
 """
@@ -59,9 +59,10 @@ class Filter:
     def __init__(
         self, read_from: Union[Camera, EventRememberer], settings: FilterSettings
     ):
+    
         """
         Args:
-            read_from (Camera): Read frames from this camera
+            read_from (Union[Camera, EventRememberer]): Read frames from camera or EventRememberer
             settings (FilterSettings): Settings for the filter pipeline
         """
 
@@ -96,11 +97,11 @@ class Filter:
 
         logger.debug("Filter started")
 
-    def get(self):
+    def get(self) -> Union[EventData, Frame]:
         """Retrieve the next animal `Frame` or animal `EventData` from the filter pipeline's output.
 
         Returns:
-            Next: An animal frame or event
+            Next (Union[EventData, Frame]): An animal frame or event
         """
         if self.mode == FilterMode.BY_FRAME:
             return self._motion_labelled_queue.get()
@@ -167,22 +168,20 @@ class Filter:
         if self._event_fraction <= 0:
             # run detector on middle frame only
             frame = frames[middle_idx]
-            return self._animal_filter.run(frame, format=self._raw_image_format)
+            return self._animal_filter.run(frame, img_format=self._raw_image_format)
         else:
             # get evenly spaced frames throughout the event
             nr_elements = int(round(len(frames) * self._event_fraction))
             indices = [
                 int(round(index)) for index in linspace(0, len(frames) - 1, nr_elements)
             ]
-            lst_indx_frames_from_centre = []
-            for index in indices:
-                lst_indx_frames_from_centre.append((index, frames[index]))
+            lst_indx_frames_from_centre = [(index, frames[index]) for index in indices]
             # sort in ordering from middle frame
             lst_indx_frames_from_centre.sort(key=lambda x: abs(middle_idx - x[0]))
             # process frames from middle, spiral out
             for (_, frame) in lst_indx_frames_from_centre:
                 is_animal = self._animal_filter.run(
-                    frame, format=self._raw_image_format
+                    frame, img_format=self._raw_image_format
                 )
                 if is_animal:
                     return True

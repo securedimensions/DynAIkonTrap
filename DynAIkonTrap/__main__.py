@@ -66,8 +66,8 @@ settings = load_settings()
 getLogger().setLevel(settings.logging.level)
 if settings.pipeline.pipeline_variant == PipelineVariant.LEGACY.value:
     # Legacy pipeline mode
-    camera = Camera(settings=settings.camera)
-    filters = Filter(read_from=camera, settings=settings.filter)
+    source = Camera(settings=settings.camera)
+
 else:
     # Low-powered pipeline mode
     camera = CameraToDisk(
@@ -75,8 +75,10 @@ else:
         writer_settings=settings.output,
         filter_settings=settings.filter,
     )
-    rememberer = EventRememberer(read_from=camera)
-    filters = Filter(read_from=rememberer, settings=settings.filter)
+    source = EventRememberer(read_from=camera)
+
+filters = Filter(read_from=source, settings=settings.filter)
+
 
 sensor_logs = SensorLogs(settings=settings.sensor)
 Output(settings=settings.output, read_from=(filters, sensor_logs))

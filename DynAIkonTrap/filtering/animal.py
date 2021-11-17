@@ -64,7 +64,7 @@ class AnimalFilter:
     def run_raw(
         self,
         image: bytes,
-        format: Union[
+        img_format: Union[
             RawImageFormat, CompressedImageFormat
         ] = CompressedImageFormat.JPEG,
     ) -> float:
@@ -72,24 +72,24 @@ class AnimalFilter:
 
         Args:
             image (bytes): The image frame to be analysed, can be in JPEG compressed format or RGBA, RGB raw format
-            format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
+            img_format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
 
         Returns:
             float: Confidence in the output containing an animal as a decimal fraction
         """
         decoded_image = []
-        if format is CompressedImageFormat.JPEG:
+        if img_format is CompressedImageFormat.JPEG:
             decoded_image = cv2.resize(
                 cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
             )
-        elif format is RawImageFormat.RGBA:
+        elif img_format is RawImageFormat.RGBA:
             decoded_image = np.asarray(
                 Image.frombytes(
                     "RGBA", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGBA"
                 )
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2RGB)
-        elif format is RawImageFormat.RGB:
+        elif img_format is RawImageFormat.RGB:
             decoded_image = np.asarray(
                 Image.frombytes(
                     "RGB", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGB"
@@ -110,7 +110,7 @@ class AnimalFilter:
     def run(
         self,
         image: bytes,
-        format: Union[
+        img_format: Union[
             RawImageFormat, CompressedImageFormat
         ] = CompressedImageFormat.JPEG,
     ) -> bool:
@@ -118,9 +118,9 @@ class AnimalFilter:
 
         Args:
             image (bytes): The image frame to be analysed, can be in JPEG compressed format or RGBA, RGB raw format
-            format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
+            img_format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
 
         Returns:
-            float: Confidence in the output containing an animal as a decimal fraction
+            bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
         """
-        return self.run_raw(image, format) >= self.threshold
+        return self.run_raw(image, img_format) >= self.threshold
