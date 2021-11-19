@@ -1,25 +1,34 @@
 {
+    "pipeline": {
+        "pipeline_variant": 1
+    },
     "camera": {
-        "framerate": 20,
+        "framerate": 10,
         "resolution": [
-            640,
-            480
-        ]
+            1920,
+            1080
+        ],
+        "bitrate_bps": 10000000,
+        "raw_framerate_divisor": 5,
+        "io_buffer_size_s": 20,
+        "raw_stream_image_format": 0
     },
     "filter": {
         "motion": {
-            "small_threshold": 10,
-            "sotv_threshold": 319.9398513079542,
-            "iir_cutoff_hz": 0.9920634920634921,
+            "small_threshold": 5,
+            "sotv_threshold": 1279.7594052318168,
+            "iir_cutoff_hz": 0.16534391534391535,
             "iir_order": 3,
             "iir_attenuation": 35
         },
         "animal": {
             "threshold": 0.2
         },
-        "motion_queue": {
-            "smoothing_factor": 1.008,
-            "max_sequence_period_s": 10.0
+        "processing": {
+            "smoothing_factor": 0.5,
+            "max_sequence_period_s": 10.0,
+            "context_length_s": 3.0,
+            "detector_fraction": 1.0
         }
     },
     "sensor": {
@@ -29,13 +38,14 @@
         "obfuscation_distance_km": 2
     },
     "output": {
-        "path": "",
+        "path": "output",
         "output_mode": 0,
         "output_format": 0,
+        "output_codec": 0,
         "device_id": 0
     },
     "logging": {
         "level": "INFO"
     },
-    "version": "1.1.0"
+    "version": "1.1.1"
 }
