@@ -22,7 +22,7 @@ An output queue of emptied buffer directories is accessible via the output of :c
 """
 from collections import deque
 from logging import DEBUG, exception
-from os import nice
+from os import SEEK_CUR, nice
 from io import open
 from queue import Empty
 from pathlib import Path
@@ -158,9 +158,8 @@ class MotionRAMBuffer(PiMotionAnalysis):
                     + bytearray(motion_frame)
                 )
                 self._bytes_written += self._active_stream.write(motion_bytes)
-                sleep(0.1)
 
-            except:
+            except IndexError:
                 sleep(0.1)
                 pass
 
@@ -172,7 +171,8 @@ class MotionRAMBuffer(PiMotionAnalysis):
             is_start (bool): indicates if this buffer starts a new motion event
         """
         if is_start:
-            current_pos = self._inactive_stream.seek(1)
+
+            current_pos = self._inactive_stream.tell()
             context_pos = max(
                 0,
                 current_pos
@@ -180,7 +180,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
             )
             try:
                 self._inactive_stream.seek(context_pos)
-            except:
+            except ValueError:
                 logger.error(
                     "cannot seek to context position for motion vector buffer, buffer abandoned"
                 )
@@ -336,8 +336,9 @@ class H264RAMBuffer(VideoRAMBuffer):
                     )
                 )
                 if len(sps_frames) > 0:
-                    get_closest_frame = lambda frame_idx, sps_frames: min(
-                        sps_frames, key=lambda element: abs(element[0] - context_index)
+                    def get_closest_frame(frame_idx, sps_frames): return min(
+                        sps_frames, key=lambda element: abs(
+                            element[0] - context_index)
                     )[1]
                     # scroll to start frame, sps frame closest to context index
                     start_frame = get_closest_frame(context_index, sps_frames)
@@ -346,9 +347,10 @@ class H264RAMBuffer(VideoRAMBuffer):
                 else:
                     # if no sps frames, discard the stream
                     self.clear_inactive_stream()
-            except Exception as e:
+            except (IndexError, ValueError) as e:
                 print(e)
-                logger.error("Problem writing the first H264 frame, buffer abandoned")
+                logger.error(
+                    "Problem writing the first H264 frame, buffer abandoned")
                 self.clear_inactive_stream()
         else:
             self._inactive_stream.seek(0)
@@ -449,7 +451,8 @@ class CameraToDisk:
         self.bitrate = camera_settings.bitrate_bps
         self._raw_stream_image_format = camera_settings.raw_stream_image_format
         self.bits_per_pixel_raw = 0
-        self.raw_image_format = RawImageFormat(camera_settings.raw_stream_image_format)
+        self.raw_image_format = RawImageFormat(
+            camera_settings.raw_stream_image_format)
         if self.raw_image_format is RawImageFormat.RGBA:
             self.bits_per_pixel_raw = 4
         elif self.raw_image_format is RawImageFormat.RGB:
@@ -474,7 +477,8 @@ class CameraToDisk:
             filter_settings.processing.context_length_s,
             self._camera,
             splitter_port=1,
-            size=(camera_settings.bitrate_bps * camera_settings.io_buffer_size_s) // 8,
+            size=(camera_settings.bitrate_bps *
+                  camera_settings.io_buffer_size_s) // 8,
         )
         self._raw_buffer: RawRAMBuffer = RawRAMBuffer(
             filter_settings.processing.context_length_s,
