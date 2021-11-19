@@ -27,6 +27,8 @@ from multiprocessing.context import set_spawning_popen
 from multiprocessing.queues import Queue as QueueType
 from queue import Empty
 from os import nice
+from os.path import basename
+from shutil import rmtree
 from subprocess import CalledProcessError, call, check_call
 from time import sleep
 from enum import Enum
@@ -59,7 +61,6 @@ class Filter:
     def __init__(
         self, read_from: Union[Camera, EventRememberer], settings: FilterSettings
     ):
-    
         """
         Args:
             read_from (Union[Camera, EventRememberer]): Read frames from camera or EventRememberer
@@ -84,7 +85,8 @@ class Filter:
                 framerate=self.framerate,
             )
 
-            self._usher = Process(target=self._handle_input_frames, daemon=True)
+            self._usher = Process(
+                target=self._handle_input_frames, daemon=True)
             self._usher.start()
 
         elif isinstance(read_from, EventRememberer):
@@ -92,7 +94,8 @@ class Filter:
             self._event_fraction = settings.processing.detector_fraction
             self._raw_image_format = read_from.raw_image_format
             self._output_queue: QueueType[EventData] = Queue()
-            self._usher = Process(target=self._handle_input_events, daemon=True)
+            self._usher = Process(
+                target=self._handle_input_events, daemon=True)
             self._usher.start()
 
         logger.debug("Filter started")
@@ -133,7 +136,8 @@ class Filter:
                 )
 
             else:
-                self._motion_labelled_queue.put(frame, -1.0, MotionStatus.STILL)
+                self._motion_labelled_queue.put(
+                    frame, -1.0, MotionStatus.STILL)
 
     def _handle_input_events(self):
         """Process input queue as a list of events: BY_EVENT filter mode."""
@@ -143,7 +147,8 @@ class Filter:
                 result = self._process_event(event)
                 # self._output_queue.put(event)
                 if not result:
-                    logger.info("No Animal detected, deleting event from disk...")
+                    logger.info(
+                        "No Animal detected, deleting event from disk...")
                     self._delete_event(event)
                 else:
                     logger.info("Animal detected, save output video...")
@@ -175,9 +180,11 @@ class Filter:
             indices = [
                 int(round(index)) for index in linspace(0, len(frames) - 1, nr_elements)
             ]
-            lst_indx_frames_from_centre = [(index, frames[index]) for index in indices]
+            lst_indx_frames_from_centre = [
+                (index, frames[index]) for index in indices]
             # sort in ordering from middle frame
-            lst_indx_frames_from_centre.sort(key=lambda x: abs(middle_idx - x[0]))
+            lst_indx_frames_from_centre.sort(
+                key=lambda x: abs(middle_idx - x[0]))
             # process frames from middle, spiral out
             for (_, frame) in lst_indx_frames_from_centre:
                 is_animal = self._animal_filter.run(
@@ -195,10 +202,13 @@ class Filter:
         """
 
         try:
-            check_call(
-                ["rm -r {}".format(event.dir)],
-                shell=True,
-            )
+            # check directory is actually an event directory
+            name = basename(event.dir)
+            if name.startswith('event_'):
+                check_call(
+                    ["rm -r {}".format(event.dir)],
+                    shell=True,
+                )
         except CalledProcessError as e:
             logger.error(
                 "Problem deleting event with directory: {}. Code: {}".format(
