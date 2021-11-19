@@ -1,9 +1,23 @@
 # Change Log
+## [v1.2.0] - 2021-10-31
+### Added 
+- Camera recording to disk module, modified PiCamera; DynCamera
+- EventRememberer which to load events from disk into processing pipeline
+- Filtermodes BY_FRAME and BY_EVENT to add functionality to process events with Filter module
+- Event output added to comms.py
+- modified __main__.py to support old and new pipelines depending on settings
+- Modified settings to include parameters for: pipeline, bitrate, framerate divisor, buffer length, raw image format and detector fraction 
+
+### Changed 
+- Motion Queue Settings semantics changed to processing settings. To better fit other pipeline which does not use a motion queue.
+
 
 ## [v1.1.0] - 2021-08-15
 ### Added
 - Check for `settings.json` version vs. DynAIkonTrap version in case settings are copied from one trap to another
-- Added support for multiple output video codecs and settings to choose between them.
+- Added support for multiple output video codecs and settings to choose between them
+- Pillow to requirements.txt easiest way to load raw images as far as I can tell. If this can be done with OpenCV it would be nicer. 
+
 
 ### Fixed
 - Implementation of UrSense interface following updated documentation
@@ -13,6 +27,7 @@
 - Video sensor logs to JSON for easier machine reading -- parsing this back to the previous VTT output is trivial
 - Interface to initialise `Output` -- output mode is now handled internally
 - Documentation -- including wiki -- migrated to Sphinx
+
 
 ### Added 
 - context buffer so that clips of animals include "run in" and "trail off" frames. 

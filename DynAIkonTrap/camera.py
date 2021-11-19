@@ -80,7 +80,7 @@ class ImageReader:
         self._sync = synchroniser
 
     def write(self, buf):
-        if buf.startswith(b'\xff\xd8'):
+        if buf.startswith(b"\xff\xd8"):
             self._sync.tick_image_frame(buf)
 
 
@@ -98,14 +98,17 @@ class Camera:
         self._output: QueueType[Frame] = Queue()
         synchroniser = Synchroniser(self._output)
         self._camera.start_recording(
-            '/dev/null',
-            format='h264',
+            "/dev/null",
+            format="h264",
             motion_output=MovementAnalyser(self._camera, synchroniser),
         )
         self._camera.start_recording(
-            ImageReader(synchroniser), format='mjpeg', splitter_port=2
+            ImageReader(synchroniser),
+            format="mjpeg",
+            splitter_port=2,
+            bitrate=settings.bitrate_bps,
         )
-        logger.debug('Camera started')
+        logger.debug("Camera started")
 
     def get(self) -> Frame:
         """Retrieve the next frame from the camera
@@ -120,7 +123,7 @@ class Camera:
             return self._output.get(1 / self.framerate)
 
         except Empty:
-            logger.error('No frames available from Camera')
+            logger.error("No frames available from Camera")
             self._no_frames = True
             raise Empty
 

@@ -16,28 +16,31 @@
 from logging import getLogger
 from signal import signal, SIGINT
 from argparse import ArgumentParser
+from time import sleep
 
 
 def get_version_number() -> str:
-    with open('VERSION', 'r') as f:
+    with open("VERSION", "r") as f:
         version = f.readline().strip()
     return version
 
 
 argparse = ArgumentParser(
-    prog='DynAIkonTrap',
-    description='An AI-enabled camera trap design targeted at the Raspberry Pi platform',
+    prog="DynAIkonTrap",
+    description="An AI-enabled camera trap design targeted at the Raspberry Pi platform",
 )
 argparse.add_argument(
-    '--version', action='version', version='%(prog)s ' + get_version_number()
+    "--version", action="version", version="%(prog)s " + get_version_number()
 )
 args = argparse.parse_args()
 
 from DynAIkonTrap.camera import Camera
-from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.filtering.filtering import Filter
+from DynAIkonTrap.camera_to_disk import CameraToDisk
+from DynAIkonTrap.filtering.remember_from_disk import EventRememberer
 from DynAIkonTrap.comms import Output
 from DynAIkonTrap.sensor import SensorLogs
-from DynAIkonTrap.settings import load_settings
+from DynAIkonTrap.settings import PipelineVariant, load_settings
 
 # Make Ctrl-C quit gracefully
 def handler(signal_num, stack_frame):
@@ -55,17 +58,31 @@ LICENSE file or <https://www.gnu.org/licenses/> for details.
 """
 )
 
-print('Welcome to DynAIkon\'s AI camera trap!')
-print('You can halt execution with <Ctrl>+C anytime\n')
+print("Welcome to DynAIkon's AI camera trap!")
+print("You can halt execution with <Ctrl>+C anytime\n")
 
 
 settings = load_settings()
 getLogger().setLevel(settings.logging.level)
+if settings.pipeline.pipeline_variant == PipelineVariant.LEGACY.value:
+    # Legacy pipeline mode
+    source = Camera(settings=settings.camera)
 
-camera = Camera(settings=settings.camera)
-filters = Filter(read_from=camera, settings=settings.filter)
+else:
+    # Low-powered pipeline mode
+    camera = CameraToDisk(
+        camera_settings=settings.camera,
+        writer_settings=settings.output,
+        filter_settings=settings.filter,
+    )
+    source = EventRememberer(read_from=camera)
+
+filters = Filter(read_from=source, settings=settings.filter)
+
+
 sensor_logs = SensorLogs(settings=settings.sensor)
 Output(settings=settings.output, read_from=(filters, sensor_logs))
 
 while True:
+    sleep(0.5)
     pass

@@ -23,16 +23,17 @@ from tempfile import NamedTemporaryFile
 from io import StringIO
 from datetime import datetime, timezone
 from pathlib import Path
-from os import listdir
+from os import listdir, nice
 from os.path import join
 from json import dump, dumps
+from subprocess import CalledProcessError, call, check_call
 
 from requests import post
 from requests.exceptions import HTTPError, ConnectionError
 from numpy import asarray
 import cv2  # pdoc3 can't handle importing individual OpenCV functions
 
-from DynAIkonTrap.filtering import Filter
+from DynAIkonTrap.filtering.filtering import Filter, FilterMode
 from DynAIkonTrap.sensor import SensorLog, SensorLogs, Reading
 from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import (
@@ -191,9 +192,9 @@ class AbstractOutput(metaclass=ABCMeta):
     """A base class to use for outputting captured images or videos. The :func:`output_still` and :func:`output_video` functions should be overridden with output method-specific implementations."""
 
     def __init__(self, settings: OutputSettings, read_from: Tuple[Filter, SensorLogs]):
-        self._frame_queue = read_from[0]
+        self._animal_queue = read_from[0]
         self._sensor_logs = read_from[1]
-        self.framerate = self._frame_queue.framerate
+        self.framerate = self._animal_queue.framerate
         self._video_codec = settings.output_codec.name
         if settings.output_codec == OutputVideoCodec.H264:
             self._video_suffix = ".mp4"
@@ -207,18 +208,26 @@ class AbstractOutput(metaclass=ABCMeta):
             )
 
         if settings.output_format == OutputFormat.VIDEO:
-            self._reader = Process(target=self._read_frames_to_video, daemon=True)
-        else:
-            self._reader = Process(target=self._read_frames, daemon=True)
+            if self._animal_queue.mode == FilterMode.BY_FRAME:
+                self._reader = Process(target=self._read_frames_to_video, daemon=True)
+            elif self._animal_queue.mode == FilterMode.BY_EVENT:
+                self._reader = Process(target=self._read_events_to_video, daemon=True)
+
+        elif settings.output_format == OutputFormat.STILL:
+            if self._animal_queue.mode == FilterMode.BY_FRAME:
+                self._reader = Process(target=self._read_frames_to_image, daemon=True)
+            elif self._animal_queue.mode == FilterMode.BY_EVENT:
+                self._reader = Process(target=self._read_events_to_image, daemon=True)
+
         self._reader.start()
 
     def close(self):
         self._reader.terminate()
         self._reader.join()
 
-    def _read_frames(self):
+    def _read_frames_to_image(self):
         while True:
-            frame = self._frame_queue.get()
+            frame = self._animal_queue.get()
             if frame is None:
                 continue
 
@@ -236,7 +245,7 @@ class AbstractOutput(metaclass=ABCMeta):
         start_time = 0
         caption_generator = VideoCaption(self._sensor_logs, self.framerate)
         while True:
-            frame = self._frame_queue.get()
+            frame = self._animal_queue.get()
 
             # End of motion sequence
             if frame is None and not start_new:
@@ -266,6 +275,59 @@ class AbstractOutput(metaclass=ABCMeta):
 
             writer.write(decoded_image)
             frame_timestamps.append(frame.timestamp)
+
+    def _read_events_to_video(self):
+        nice(4)
+        caption_generator = VideoCaption(self._sensor_logs, self.framerate)
+        while True:
+            try:
+                event = self._animal_queue.get()
+
+                start_time = event.start_timestamp
+                file = NamedTemporaryFile(suffix=self._video_suffix)
+                try:
+                    check_call(
+                        [
+                            "nice -n 5 ffmpeg -hide_banner -loglevel error -framerate {} -probesize 42M -i {} -c copy {} -y".format(
+                                self.framerate, join(event.dir, "clip.h264"), file.name
+                            )
+                        ],
+                        shell=True,
+                    )
+                except CalledProcessError as e:
+                    logger.error(
+                        "Ffmpeg error! return code: {}. Event: {}".format(
+                            e.returncode, event.dir
+                        )
+                    )
+                caption = caption_generator.generate_sensor_json(
+                    [event.start_timestamp]
+                )
+                self.output_video(
+                    video=file, caption=caption, time=event.start_timestamp
+                )
+                file.close()
+            except Exception as e:
+                pass
+
+    def _read_events_to_image(self):
+        while True:
+            try:
+                event = self._animal_queue.get()
+                vidcap = cv2.VideoCapture(join(event.dir, "clip.h264"))
+                success, image = vidcap.read()
+                log = self._sensor_logs.get(event.start_timestamp)
+                while success:
+                    if log is None:
+                        logger.warning("No sensor readings")
+                        self.output_still(image=image, time=event.start_timestamp)
+                    else:
+                        self.output_still(
+                            image=image, time=event.start_timestamp, sensor_log=log
+                        )
+                    success, image = vidcap.read()
+            except Exception as e:
+                pass
 
     @abstractmethod
     def output_still(self, image: bytes, time: float, sensor_log: SensorLog):

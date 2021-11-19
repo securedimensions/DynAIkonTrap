@@ -37,9 +37,9 @@ def get_logger(name: str) -> Logger:
     Returns:
         Logger: A :class:`Logger` instance. Call the standard info, warning, error, etc. functions to generate
     """
-    logging_level = getenv('logging', 'DEBUG')
+    logging_level = getenv("logging", "DEBUG")
     basicConfig(
         level=logging_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     return getLogger(name)
