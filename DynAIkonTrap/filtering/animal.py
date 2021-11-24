@@ -20,12 +20,25 @@ A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other ar
 """
 from dataclasses import dataclass
 from enum import Enum
-from typing import Union
+from typing import Tuple, Union
 import cv2
 import numpy as np
 from PIL import Image
 
 from DynAIkonTrap.settings import AnimalFilterSettings, RawImageFormat
+from DynAIkonTrap.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+TFL = True
+try:
+    import tflite_runtime as tflite
+except ImportError:
+    logger.error(
+        "Cannot import TFLite runtime, execution will fall back to default animal detector, no human filtering"
+    )
+    TFL = False
 
 
 @dataclass
@@ -40,6 +53,7 @@ class NetworkInputSizes:
     """A class to hold data for neural network input buffer sizes. Sizes are in (width, height) format"""
 
     YOLOv4_TINY = (416, 416)
+    SSDLITE_MOBILENET_V2 = (300, 300)
 
 
 class AnimalFilter:
@@ -50,16 +64,24 @@ class AnimalFilter:
         Args:
             settings (AnimalFilterSettings): Settings for the filter
         """
-        self.threshold = settings.threshold
-
-        self.model = cv2.dnn.readNet(
-            "DynAIkonTrap/filtering/yolo_animal_detector.weights",
-            "DynAIkonTrap/filtering/yolo_animal_detector.cfg",
-        )
-        layer_names = self.model.getLayerNames()
-        self.output_layers = [
-            layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
-        ]
+        self.animal_threshold = settings.animal_threshold
+        self.human_threshold = settings.human_threshold
+        self.detect_humans = settings.detect_humans
+        self.fast_animal_detect = settings.fast_animal_detect
+        if settings.detect_humans:
+            pass  # to-do: add tflite loading of ssdmobnet human-animal detector
+        elif settings.fast_animal_detect:
+            pass  # to-do: add tflite loading of ssdmobnet animal-only detector
+        else:
+            # use YOLOv4-tiny 416 animal-only detector
+            self.model = cv2.dnn.readNet(
+                "DynAIkonTrap/filtering/yolo_animal_detector.weights",
+                "DynAIkonTrap/filtering/yolo_animal_detector.cfg",
+            )
+            layer_names = self.model.getLayerNames()
+            self.output_layers = [
+                layer_names[i[0] - 1] for i in self.model.getUnconnectedOutLayers()
+            ]
 
     def run_raw(
         self,
@@ -67,15 +89,15 @@ class AnimalFilter:
         img_format: Union[
             RawImageFormat, CompressedImageFormat
         ] = CompressedImageFormat.JPEG,
-    ) -> float:
-        """Run the animal filter on the image to give a confidence that the image frame contains an animal
+    ) -> Tuple[float, float]:
+        """Run the animal filter on the image to give a confidence that the image frame contains an animal and/or a human. For configurations where an animal-only detector is initialised, human confidence will always equal 0.0.
 
         Args:
             image (bytes): The image frame to be analysed, can be in JPEG compressed format or RGBA, RGB raw format
             img_format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
 
         Returns:
-            float: Confidence in the output containing an animal as a decimal fraction
+            Tuple(float, float): Confidences in the output containing an animal and a human as a decimal fraction
         """
         decoded_image = []
         if img_format is CompressedImageFormat.JPEG:
@@ -95,17 +117,28 @@ class AnimalFilter:
                     "RGB", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGB"
                 )
             )
+        if self.detect_humans:
+            animal_confidence = 0.0
+            human_confidence = 0.0
+            pass  # to-do add logic to propage image through tflite animal-human detector
+        elif self.fast_animal_detect:
+            animal_confidence = 0.0
+            human_confidence = 0.0
+            pass  # to-do add logic to propage image through tflite animal-only detector
+        else:
+            animal_confidence = 0.0
+            human_confidence = 0.0
+            blob = cv2.dnn.blobFromImage(
+                decoded_image, 1, NetworkInputSizes.YOLOv4_TINY, (0, 0, 0)
+            )
+            blob = blob / 255  # Scale to be a float
+            self.model.setInput(blob)
+            output = self.model.forward(self.output_layers)
 
-        blob = cv2.dnn.blobFromImage(
-            decoded_image, 1, NetworkInputSizes.YOLOv4_TINY, (0, 0, 0)
-        )
-        blob = blob / 255  # Scale to be a float
-        self.model.setInput(blob)
-        output = self.model.forward(self.output_layers)
-
-        _, _, _, _, _, confidence0 = output[0].max(axis=0)
-        _, _, _, _, _, confidence1 = output[1].max(axis=0)
-        return max(confidence0, confidence1)
+            _, _, _, _, _, confidence0 = output[0].max(axis=0)
+            _, _, _, _, _, confidence1 = output[1].max(axis=0)
+            animal_confidence = max(confidence0, confidence1)
+        return animal_confidence, human_confidence
 
     def run(
         self,
@@ -113,14 +146,15 @@ class AnimalFilter:
         img_format: Union[
             RawImageFormat, CompressedImageFormat
         ] = CompressedImageFormat.JPEG,
-    ) -> bool:
-        """The same as :func:`run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidence is at least as large as the threshold
+    ) -> Tuple[bool, bool]:
+        """The same as :func:`run_raw()`, but with a threshold applied. This function outputs a boolean to indicate if the confidences are at least as large as the threshold
 
         Args:
             image (bytes): The image frame to be analysed, can be in JPEG compressed format or RGBA, RGB raw format
             img_format (Union[RawImageFormat, CompressedImageFormat], optional): Enum indicating which image format has been passed. Defaults to CompressedImageFormat.JPEG.
 
         Returns:
-            bool: `True` if the confidence in animal presence is at least the threshold, otherwise `False`
+            Tuple(bool, bool): Each element is `True` if the confidence is at least the threshold, otherwise `False`. Elements represent detections for animal and human class.
         """
-        return self.run_raw(image, img_format) >= self.threshold
+        animal_confidence, human_confidence = self.run_raw(image, img_format)
+        return animal_confidence >= self.animal_threshold, human_confidence >= self.human_threshold
