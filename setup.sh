@@ -91,9 +91,13 @@ fi
 
     ## Install platform dependant tflite_runtime
     if cat /proc/device-tree/model | grep -q 'Raspberry Pi 4'; then
-        pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0-cp38-cp38-linux_armv7l.whl
+        (cd $DIR && source ./venv/bin/activate &&
+            pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0-cp38-cp38-linux_armv7l.whl &&
+            deactivate)
     elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero'; then
-        pip install python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl
+        (cd $DIR && source ./venv/bin/activate &&
+            pip install python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl &&
+            deactivate)
     else 
         ## This is a different device to downloaded wheels, try default tflite_runtime install
         pip install --extra-index-url https://google-coral.github.io/py-repo/ tflite_runtime
