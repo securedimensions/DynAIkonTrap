@@ -1,4 +1,11 @@
 # Change Log
+## [v1.2.1] - 2021-11-24
+### Added
+- Support for TFLite runtime models in animal.py
+- Selection of model function accessible via settings.py, tuner.py
+- Modified setup.sh to install tflite runtime from frozen wheels
+- Added frozen wheels for TFLite runtime - at present installing through pip is experimental on RPi 4 and not possible on RPi Zero W, must be built from source.
+
 ## [v1.2.0] - 2021-10-31
 ### Added 
 - Camera recording to disk module, modified PiCamera; DynCamera

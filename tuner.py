@@ -96,7 +96,8 @@ if settings.pipeline.pipeline_variant == PipelineVariant.LOW_POWER.value:
         "Nr. seconds to buffer stream IO access (ADVANCED)",
         settings.camera.io_buffer_size_s,
     )
-    raw_fmt = input("Raw stream image format: RGBA, or RGB (ADVANCED) [RGBA]> ")
+    raw_fmt = input(
+        "Raw stream image format: RGBA, or RGB (ADVANCED) [RGBA]> ")
     if raw_fmt == "RGB":
         settings.camera.raw_stream_image_format = RawImageFormat.RGB.value
     else:
@@ -120,7 +121,8 @@ settings.filter.motion.small_threshold = setter(
 )
 
 # Calculate SoTV threshold
-animal_dimension = (area_reality ** 0.5 * focal_len) / (pixel_ratio * subject_distance)
+animal_dimension = (area_reality ** 0.5 * focal_len) / \
+    (pixel_ratio * subject_distance)
 animal_area_in_motion_vectors = animal_dimension ** 2 / 16 ** 2
 animal_pixel_speed = (animal_speed * 1 / settings.camera.framerate * focal_len) / (
     pixel_ratio * subject_distance
@@ -146,10 +148,26 @@ settings.filter.motion.iir_attenuation = setter(
 )
 
 print("----Animal filtering")
-settings.filter.animal.threshold = setter(
-    "Animal confidence threshold (ADVANCED)", settings.filter.animal.threshold
+settings.filter.animal.animal_threshold = setter(
+    "Animal confidence threshold (ADVANCED)", settings.filter.animal.animal_threshold
 )
-
+detect_humans = input(
+    "Would you like DynAIkonTrap to also attempt to filter out humans from detections? YES or NO [YES]> "
+)
+if detect_humans == "NO":
+    settings.filter.animal.detect_humans = False
+else:
+    settings.filter.animal.detect_humans = True
+    settings.filter.animal.human_threshold = setter(
+        "Human confidence threshold (ADVANCED)", settings.filter.animal.human_threshold
+    )
+faster_detector = input(
+    "Would you like DynAIkonTrap to use a faster, but less accurate detector (YES) or slower and more accurate (NO)? YES or NO [YES]> "
+)
+if faster_detector == "NO":
+    settings.filter.animal.fast_animal_detect = False
+else:
+    settings.filter.animal.fast_animal_detect = True
 print("----Processing settings")
 if settings.pipeline.pipeline_variant == PipelineVariant.LEGACY.value:
     settings.filter.processing.smoothing_factor = forced_setter(
