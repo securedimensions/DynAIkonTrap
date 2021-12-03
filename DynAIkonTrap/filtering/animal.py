@@ -33,7 +33,7 @@ logger = get_logger(__name__)
 
 TFL = True
 try:
-    import tflite_runtime as tflite
+    import tflite_runtime.interpreter as tflite
 except ImportError:
     logger.error(
         "Cannot import TFLite runtime, execution will fall back to default animal detector, no human filtering"
@@ -68,12 +68,26 @@ class AnimalFilter:
         self.human_threshold = settings.human_threshold
         self.detect_humans = settings.detect_humans
         self.fast_animal_detect = settings.fast_animal_detect
-        if settings.detect_humans:
-            pass  # to-do: add tflite loading of ssdmobnet human-animal detector
-        elif settings.fast_animal_detect:
-            pass  # to-do: add tflite loading of ssdmobnet animal-only detector
+
+        if settings.detect_humans or settings.fast_animal_detect:
+            self.input_size = NetworkInputSizes.SSDLITE_MOBILENET_V2
+            if settings.detect_humans:
+                self.model = tflite.Interpreter(
+                    model_path="DynAIkonTrap/filtering/ssdlite_mobilenet_v2_animal_human/model.tflite"
+                )
+            elif settings.fast_animal_detect:
+                self.model = tflite.Interpreter(
+                    model_path="DynAIkonTrap/filtering/models/ssdlite_mobilenet_v2_animal_only/model.tflite"
+                )
+            self.model.resize_tensor_input(
+                0, [1, self.input_size[0], self.input_size[1], 3], strict=True)
+            self.model.allocate_tensors()
+            self.tfl_input_details = self.model.get_input_details()
+            self.tfl_output_details = self.model.get_output_details()
+
         else:
             # use YOLOv4-tiny 416 animal-only detector
+            self.input_size = NetworkInputSizes.YOLOv4_TINY
             self.model = cv2.dnn.readNet(
                 "DynAIkonTrap/filtering/yolo_animal_detector.weights",
                 "DynAIkonTrap/filtering/yolo_animal_detector.cfg",
@@ -102,32 +116,51 @@ class AnimalFilter:
         decoded_image = []
         if img_format is CompressedImageFormat.JPEG:
             decoded_image = cv2.resize(
-                cv2.imdecode(np.asarray(image), cv2.IMREAD_COLOR), (416, 416)
+                cv2.imdecode(np.asarray(
+                    image), cv2.IMREAD_COLOR), (self.input_size)
             )
         elif img_format is RawImageFormat.RGBA:
             decoded_image = np.asarray(
                 Image.frombytes(
-                    "RGBA", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGBA"
+                    "RGBA", self.input_size, image, "raw", "RGBA"
                 )
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2RGB)
         elif img_format is RawImageFormat.RGB:
             decoded_image = np.asarray(
                 Image.frombytes(
-                    "RGB", NetworkInputSizes.YOLOv4_TINY, image, "raw", "RGB"
+                    "RGB", self.input_size, image, "raw", "RGB"
                 )
             )
-        if self.detect_humans:
-            animal_confidence = 0.0
-            human_confidence = 0.0
-            pass  # to-do add logic to propage image through tflite animal-human detector
-        elif self.fast_animal_detect:
-            animal_confidence = 0.0
-            human_confidence = 0.0
-            pass  # to-do add logic to propage image through tflite animal-only detector
+        animal_confidence = 0.0
+        human_confidence = 0.0
+        if self.detect_humans or self.fast_animal_detect:
+
+            # convert to floating point input
+            # in future, tflite conversion process should be modified to accept int input, it's not clear how that's done yet
+            decoded_image = decoded_image.astype('float32')
+            decoded_image = decoded_image / decoded_image.max()
+            model_input = [decoded_image]
+            self.model.set_tensor(
+                self.tfl_input_details[0]['index'], model_input)
+            self.model.invoke()
+            output_confidences = self.model.get_tensor(
+                self.tfl_output_details[0]['index'])[0]
+            if self.detect_humans:
+                output_classes = self.model.get_tensor(
+                    self.tfl_output_details[3]['index'])[0].astype(int)
+                human_indexes = [i for (i, label) in enumerate(
+                    output_classes) if label == 0]
+                animal_indexes = [i for (i, label) in enumerate(
+                    output_classes) if label == 1]
+                human_confidence = max([output_confidences[i]
+                                       for i in human_indexes])
+                animal_confidence = max([output_confidences[i]
+                                        for i in animal_indexes])
+            else:
+                animal_confidence = max(output_confidences)
+
         else:
-            animal_confidence = 0.0
-            human_confidence = 0.0
             blob = cv2.dnn.blobFromImage(
                 decoded_image, 1, NetworkInputSizes.YOLOv4_TINY, (0, 0, 0)
             )

@@ -92,7 +92,7 @@ fi
     ## Install platform dependant tflite_runtime
     if cat /proc/device-tree/model | grep -q 'Raspberry Pi 4'; then
         (cd $DIR && source ./venv/bin/activate &&
-            pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0-cp37-cp37m-linux_armv7l.whl &&
+            pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0.post1-cp37-cp37m-linux_armv7l.whl &&
             deactivate)
     elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero'; then
         (cd $DIR && source ./venv/bin/activate &&

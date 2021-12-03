@@ -51,9 +51,9 @@ The JSON file should be structured as follows (of course the values can be chang
         },
         "animal": {
             "animal_threshold": 0.1,
-            "detect_humans": True,
+            "detect_humans": true,
             "human_threshold": 0.1,
-            "fast_animal_detect: True
+            "fast_animal_detect: true
         },
         "processing": {
             "smoothing_factor": 1,
@@ -137,10 +137,10 @@ class MotionFilterSettings:
 class AnimalFilterSettings:
     """Settings for a :class:`~DynAIkonTrap.filtering.animal.AnimalFilter`"""
 
-    animal_threshold: float = 0.2
+    animal_threshold: float = 0.8
     detect_humans: bool = True
     human_threshold: float = 0.2
-    fast_animal_detect = True
+    fast_animal_detect: bool = True
 
 
 @dataclass
