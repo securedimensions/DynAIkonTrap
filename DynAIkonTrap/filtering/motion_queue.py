@@ -126,7 +126,7 @@ class Sequence:
         # add tail context
         start = last_animal_frame_index
         stop = min(start + self.context_len, len(self._frames))
-        self._label(self._frames[start + 1 : stop], Label.CONTEXT)
+        self._label(self._frames[start + 1: stop], Label.CONTEXT)
 
     def label_as_animal(self, frame: LabelledFrame):
         """Label a given frame as containing an animal. Intended to be called based on the output of the animal filter. Frames either side of this one in the current sequence will also be labelled as animal according to the ``smoothing_len``
@@ -137,7 +137,7 @@ class Sequence:
         frame_index = frame.index
         start = max(frame_index - self.smoothing_len, 0)
         stop = min(frame_index + self.smoothing_len, len(self._frames))
-        self._label(self._frames[start : stop + 1], Label.ANIMAL)
+        self._label(self._frames[start: stop + 1], Label.ANIMAL)
 
     def label_as_empty(self, frame: LabelledFrame):
         """Label the given frame as empty. Intended to be called based on the output of the animal filter. Only this frame is labelled as empty; no smoothing is applied.
@@ -156,7 +156,7 @@ class Sequence:
             if frame.label == Label.ANIMAL:
 
                 if current_gap <= self.smoothing_len * 2:
-                    self._label(self._frames[i - current_gap : i], Label.ANIMAL)
+                    self._label(self._frames[i - current_gap: i], Label.ANIMAL)
 
                 last_animal = i
                 current_gap = 0
@@ -189,7 +189,8 @@ class Sequence:
         Returns:
             LabelledFrame: Frame to be analysed by the animal filtering stage
         """
-        highest_priority_frame = max(self._frames, key=lambda frame: frame.priority)
+        highest_priority_frame = max(
+            self._frames, key=lambda frame: frame.priority)
         if highest_priority_frame.motion_status is MotionStatus.STILL:
             return None
         return highest_priority_frame
@@ -236,7 +237,8 @@ class Sequence:
         """
         return list(
             filter(
-                lambda frame: frame.label in (Label.ANIMAL, Label.CONTEXT), self._frames
+                lambda frame: frame.label in (
+                    Label.ANIMAL, Label.CONTEXT), self._frames
             )
         )
 
@@ -273,7 +275,8 @@ class MotionLabelledQueue:
         self._smoothing_len = int((settings.smoothing_factor * framerate) / 2)
         self._context_len = int((settings.context_length_s * framerate))
         self._sequence_len = framerate * settings.max_sequence_period_s
-        self._current_sequence = Sequence(self._smoothing_len, self._context_len)
+        self._current_sequence = Sequence(
+            self._smoothing_len, self._context_len)
         self._queue: QueueType[Sequence] = Queue()
         self._animal_detector = animal_detector
         self._output_queue: QueueType[Frame] = Queue()
@@ -319,7 +322,8 @@ class MotionLabelledQueue:
                         self._remaining_frames.value * self._mean_time.value,
                     )
                 )
-            self._current_sequence = Sequence(self._smoothing_len, self._context_len)
+            self._current_sequence = Sequence(
+                self._smoothing_len, self._context_len)
 
             with self._remaining_frames.get_lock():
                 self._remaining_frames.value += current_len
@@ -339,7 +343,7 @@ class MotionLabelledQueue:
 
             frame = sequence.get_highest_priority()
             while frame:
-                is_animal = self._animal_detector.run(
+                is_animal, is_human = self._animal_detector.run(
                     frame.frame.image, format=CompressedImageFormat.JPEG
                 )
 
@@ -348,7 +352,7 @@ class MotionLabelledQueue:
                 t_temp = _t
                 inference_count += 1
 
-                if is_animal:
+                if is_animal and not is_human:
                     sequence.label_as_animal(frame)
                 else:
                     sequence.label_as_empty(frame)
@@ -375,7 +379,8 @@ class MotionLabelledQueue:
                 )
             )
             output = list(
-                map(lambda frame: frame.frame, sequence.get_animal_or_context_frames())
+                map(lambda frame: frame.frame,
+                    sequence.get_animal_or_context_frames())
             )
             output += [None] if len(output) > 0 else []
             [self._output_queue.put(f) for f in output]
