@@ -15,17 +15,20 @@
     },
     "filter": {
         "motion": {
-            "small_threshold": 5,
-            "sotv_threshold": 1279.7594052318168,
-            "iir_cutoff_hz": 0.16534391534391535,
-            "iir_order": 3,
-            "iir_attenuation": 35
+            "small_threshold": 10,
+            "sotv_threshold": 300,
+            "iir_cutoff_hz": 1,
+            "iir_order": 8,
+            "iir_attenuation": 20
         },
         "animal": {
-            "threshold": 0.2
+            "animal_threshold": 0.99,
+            "detect_humans": false,
+            "human_threshold": 0.80,
+            "fast_animal_detect": true
         },
         "processing": {
-            "smoothing_factor": 0.5,
+            "smoothing_factor": 1,
             "max_sequence_period_s": 10.0,
             "context_length_s": 3.0,
             "detector_fraction": 1.0
@@ -34,11 +37,10 @@
     "sensor": {
         "port": "/dev/ttyUSB0",
         "baud": 57600,
-        "interval_s": 30.0,
-        "obfuscation_distance_km": 2
+        "interval_s": 30.0
     },
     "output": {
-        "path": "output",
+        "path": "",
         "output_mode": 0,
         "output_format": 0,
         "output_codec": 0,
@@ -47,5 +49,5 @@
     "logging": {
         "level": "INFO"
     },
-    "version": "1.2.0"
+    "version": "1.2.1"
 }
