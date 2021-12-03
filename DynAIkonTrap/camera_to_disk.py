@@ -175,8 +175,8 @@ class MotionRAMBuffer(PiMotionAnalysis):
             current_pos = self._inactive_stream.tell()
             context_pos = max(
                 0,
-                current_pos
-                - (self._element_size * self._context_len_s * self._framerate),
+                int(current_pos
+                    - (self._element_size * self._context_len_s * self._framerate)),
             )
             try:
                 self._inactive_stream.seek(context_pos)
