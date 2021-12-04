@@ -96,7 +96,7 @@ fi
             deactivate)
     elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero'; then
         (cd $DIR && source ./venv/bin/activate &&
-            pip install python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl &&
+            pip install --no-deps python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl
             deactivate)
     else 
         ## This is a different device to downloaded wheels, try default tflite_runtime install
