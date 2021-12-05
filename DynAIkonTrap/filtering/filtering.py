@@ -81,7 +81,7 @@ class Filter:
             self._motion_threshold = settings.motion.sotv_threshold
             self._motion_labelled_queue = MotionLabelledQueue(
                 animal_detector=self._animal_filter,
-                settings=settings.motion_queue,
+                settings=settings.processing,
                 framerate=self.framerate,
             )
 

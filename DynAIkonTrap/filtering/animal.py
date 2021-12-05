@@ -125,13 +125,14 @@ class AnimalFilter:
                     "RGBA", self.input_size, image, "raw", "RGBA"
                 )
             )
-            decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2RGB)
+            decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2BGR)
         elif img_format is RawImageFormat.RGB:
             decoded_image = np.asarray(
                 Image.frombytes(
                     "RGB", self.input_size, image, "raw", "RGB"
                 )
             )
+            decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGB2BGR)
         animal_confidence = 0.0
         human_confidence = 0.0
         if self.detect_humans or self.fast_animal_detect:
@@ -164,10 +165,10 @@ class AnimalFilter:
             blob = cv2.dnn.blobFromImage(
                 decoded_image, 1, NetworkInputSizes.YOLOv4_TINY, (0, 0, 0)
             )
-            blob = blob / 255  # Scale to be a float
+            
+            blob = blob / 255.0  # Scale to be a float
             self.model.setInput(blob)
             output = self.model.forward(self.output_layers)
-
             _, _, _, _, _, confidence0 = output[0].max(axis=0)
             _, _, _, _, _, confidence1 = output[1].max(axis=0)
             animal_confidence = max(confidence0, confidence1)
