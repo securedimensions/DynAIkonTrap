@@ -26,6 +26,7 @@ from os import SEEK_CUR, nice
 from io import open
 from queue import Empty
 from pathlib import Path
+from math import ceil
 from time import sleep, time
 import numpy as np
 from struct import pack, unpack
@@ -454,10 +455,19 @@ class CameraToDisk:
         self.raw_image_format = RawImageFormat(
             camera_settings.raw_stream_image_format)
         if self.raw_image_format is RawImageFormat.RGBA:
+            self._raw_format = 'rgba'
             self.bits_per_pixel_raw = 4
         elif self.raw_image_format is RawImageFormat.RGB:
+            self._raw_format = 'rgb'
             self.bits_per_pixel_raw = 3
-        self.raw_frame_dims = NetworkInputSizes.YOLOv4_TINY
+        if filter_settings.animal.detect_humans or filter_settings.animal.fast_animal_detect:
+            self.raw_frame_dims = NetworkInputSizes.SSDLITE_MOBILENET_V2
+        else:
+            self.raw_frame_dims = NetworkInputSizes.YOLOv4_TINY
+        #picamera requires resize dims to be a multiple of 32, for now, we have to resize to this. 
+        #in the future, re-train a network with appropriate input dims, to-do
+        factor_32 = tuple(map(lambda x: ceil(x / 32.0), self.raw_frame_dims))
+        self.raw_frame_dims = tuple(map(lambda x: int( x * 32), factor_32))
         self.framerate = camera_settings.framerate
         self._camera = DynCamera(
             raw_divisor=camera_settings.raw_framerate_divisor,
@@ -526,7 +536,7 @@ class CameraToDisk:
         )
         self._camera.start_recording(
             self._raw_buffer,
-            format="rgba",
+            format=self._raw_format,
             splitter_port=2,
             resize=self.raw_frame_dims,
         )

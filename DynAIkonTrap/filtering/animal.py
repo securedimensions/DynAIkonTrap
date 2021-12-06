@@ -21,6 +21,7 @@ A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other ar
 from dataclasses import dataclass
 from enum import Enum
 from typing import Tuple, Union
+from math import sqrt
 import cv2
 import numpy as np
 from PIL import Image
@@ -115,24 +116,27 @@ class AnimalFilter:
         """
         decoded_image = []
         if img_format is CompressedImageFormat.JPEG:
-            decoded_image = cv2.resize(
-                cv2.imdecode(np.asarray(
-                    image), cv2.IMREAD_COLOR), (self.input_size)
-            )
+            decoded_image = cv2.imdecode(np.asarray(
+                    image), cv2.IMREAD_COLOR)
         elif img_format is RawImageFormat.RGBA:
+            sz = int(sqrt(len(image) / 4))
             decoded_image = np.asarray(
                 Image.frombytes(
-                    "RGBA", self.input_size, image, "raw", "RGBA"
+                    "RGBA", (sz,sz), image, "raw", "RGBA"
                 )
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGBA2BGR)
         elif img_format is RawImageFormat.RGB:
+            sz = int(sqrt(len(image) / 3))
+            
             decoded_image = np.asarray(
                 Image.frombytes(
-                    "RGB", self.input_size, image, "raw", "RGB"
+                    "RGB", (sz,sz), image, "raw", "RGB"
                 )
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGB2BGR)
+        decoded_image = cv2.resize(decoded_image, (self.input_size))
+        cv2.imwrite('img.jpg', decoded_image)
         animal_confidence = 0.0
         human_confidence = 0.0
         if self.detect_humans or self.fast_animal_detect:
