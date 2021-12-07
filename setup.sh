@@ -94,7 +94,7 @@ fi
         (cd $DIR && source ./venv/bin/activate &&
             pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0.post1-cp37-cp37m-linux_armv7l.whl &&
             deactivate)
-    elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero'; then
+    elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero W'; then
         (cd $DIR && source ./venv/bin/activate &&
             pip install --no-deps python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl
             deactivate)
