@@ -40,7 +40,7 @@
         "interval_s": 30.0
     },
     "output": {
-        "path": "",
+        "path": "output",
         "output_mode": 0,
         "output_format": 0,
         "output_codec": 0,
