@@ -31,6 +31,7 @@ from os.path import basename
 from shutil import rmtree
 from subprocess import CalledProcessError, call, check_call
 from time import sleep
+from time import time
 from enum import Enum
 from typing import Union
 from numpy import round, linspace
@@ -46,6 +47,10 @@ from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import FilterSettings, RawImageFormat
 
 logger = get_logger(__name__)
+
+import csv
+
+fileout = './filtering_out.csv'
 
 
 class FilterMode(Enum):
@@ -169,12 +174,16 @@ class Filter:
             bool: True if event contains an animal, False otherwise.
         """
         frames = list(event.raw_raster_frames)
+        print(len(frames))
         middle_idx = len(frames) // 2
+        inference_data = []
         if self._event_fraction <= 0:
             # run detector on middle frame only
             frame = frames[middle_idx]
+            t_start = time()
             is_animal, is_human = self._animal_filter.run(
                 frame, img_format=self._raw_image_format)
+            inference_data.append((time() - t_start, is_animal, is_human))
             return is_animal and not is_human
         else:
             # get evenly spaced frames throughout the event
@@ -189,13 +198,20 @@ class Filter:
                 key=lambda x: abs(middle_idx - x[0]))
             # process frames from middle, spiral out
             for (_, frame) in lst_indx_frames_from_centre:
+                t_start = time()
                 is_animal, is_human = self._animal_filter.run(
                     frame, img_format=self._raw_image_format
                 )
+                inference_data.append((time() - t_start, is_animal, is_human))
                 if is_human:
                     return False
                 if is_animal:
                     return True
+        with open(fileout, 'a', newline="") as csvfile:
+                        csvwriter = csv.writer(
+                            csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
+                        )
+                        csvwriter.writerow(inference_data)
         return False
 
     def _delete_event(self, event: EventData):

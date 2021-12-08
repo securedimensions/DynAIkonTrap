@@ -35,6 +35,7 @@ from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from typing import Tuple
 from threading import Thread
+import csv
 
 try:
     from picamera import PiCamera
@@ -61,6 +62,8 @@ from DynAIkonTrap.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+fileout = './motion_events.csv'
 
 @dataclass
 class MotionData:
@@ -545,9 +548,10 @@ class CameraToDisk:
         try:
             while self._on:
                 self._camera.wait_recording(1)
-
+                row = ["", ""]
                 if self._motion_buffer.is_motion:  # motion is detected!
                     logger.info("Motion detected, emptying buffers to disk.")
+                    row[0] = time()
                     event_dir = current_path
                     motion_start_time = time()
                     last_buffer_empty_t = time()
@@ -573,8 +577,15 @@ class CameraToDisk:
                             time() - motion_start_time
                         )
                     )
+                    row[1] = time() - motion_start_time
 
                     current_path = self._directory_maker.get_event()[0]
+                    with open(fileout, 'a', newline="") as csvfile:
+                        csvwriter = csv.writer(
+                            csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
+                        )
+                        csvwriter.writerow(row)
+
         finally:
             self._camera.stop_recording()
 
