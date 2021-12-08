@@ -22,7 +22,7 @@
             "iir_attenuation": 20
         },
         "animal": {
-            "animal_threshold": 0.99,
+            "animal_threshold": 0.75,
             "detect_humans": false,
             "human_threshold": 0.80,
             "fast_animal_detect": true
