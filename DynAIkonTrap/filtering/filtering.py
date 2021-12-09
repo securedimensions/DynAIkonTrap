@@ -177,6 +177,8 @@ class Filter:
         print(len(frames))
         middle_idx = len(frames) // 2
         inference_data = []
+        human = False
+        animal = False
         if self._event_fraction <= 0:
             # run detector on middle frame only
             frame = frames[middle_idx]
@@ -184,6 +186,10 @@ class Filter:
             is_animal, is_human = self._animal_filter.run(
                 frame, img_format=self._raw_image_format)
             inference_data.append((time() - t_start, is_animal, is_human))
+            if is_human:
+                  human = True
+            if is_animal:
+                 animal = True
             return is_animal and not is_human
         else:
             # get evenly spaced frames throughout the event
@@ -204,14 +210,18 @@ class Filter:
                 )
                 inference_data.append((time() - t_start, is_animal, is_human))
                 if is_human:
-                    return False
+                    human = True
+                    break
                 if is_animal:
-                    return True
+                    animal = True
+                    break
         with open(fileout, 'a', newline="") as csvfile:
                         csvwriter = csv.writer(
                             csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
                         )
                         csvwriter.writerow(inference_data)
+        return animal and not human
+        
         return False
 
     def _delete_event(self, event: EventData):
