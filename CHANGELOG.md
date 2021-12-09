@@ -1,4 +1,22 @@
 # Change Log
+## [v1.2.1] - 2021-11-24
+
+### Added 
+- Support for TFLite trained SSDLite MobileNet v2 models
+    - TFLite compiled binary wheel files for raspberry pi devices are included in `python_wheels/tflite_runtime`
+        - at present installing through pip is experimental on RPi 4 and not possible on RPi Zero W, must be built from source.
+    - `animal.py` modified to run inference using tflite networks or yolov4-tiny
+    - `animal.py` `run_raw` and `run` modified to produce a `human_confidence` as well as `animal_confidence`
+    - configuration for human detection, fast animal detection (tflite model) and thresholds for each added to settings.
+
+### Fixed  
+    - fixed output queue length in `event_rememberer` to 1 not 10, this stops the system loading way too many motion events and exhausting memory (kswaps)
+    - fixed indexing error in reading from motion buffer within `camera_to_disk.py`
+
+### Changed
+    - methods which use `animal.run` have been modified to accept human and animal values
+    - changes in `setup.sh` insure tflite install is attempted 
+
 ## [v1.2.0] - 2021-10-31
 ### Added 
 - Camera recording to disk module, modified PiCamera; DynCamera

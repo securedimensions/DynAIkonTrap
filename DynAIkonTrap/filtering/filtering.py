@@ -81,7 +81,7 @@ class Filter:
             self._motion_threshold = settings.motion.sotv_threshold
             self._motion_labelled_queue = MotionLabelledQueue(
                 animal_detector=self._animal_filter,
-                settings=settings.motion_queue,
+                settings=settings.processing,
                 framerate=self.framerate,
             )
 
@@ -173,7 +173,9 @@ class Filter:
         if self._event_fraction <= 0:
             # run detector on middle frame only
             frame = frames[middle_idx]
-            return self._animal_filter.run(frame, img_format=self._raw_image_format)
+            is_animal, is_human = self._animal_filter.run(
+                frame, img_format=self._raw_image_format)
+            return is_animal and not is_human
         else:
             # get evenly spaced frames throughout the event
             nr_elements = int(round(len(frames) * self._event_fraction))
@@ -187,9 +189,11 @@ class Filter:
                 key=lambda x: abs(middle_idx - x[0]))
             # process frames from middle, spiral out
             for (_, frame) in lst_indx_frames_from_centre:
-                is_animal = self._animal_filter.run(
+                is_animal, is_human = self._animal_filter.run(
                     frame, img_format=self._raw_image_format
                 )
+                if is_human:
+                    return False
                 if is_animal:
                     return True
         return False

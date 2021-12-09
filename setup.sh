@@ -42,7 +42,7 @@ if [ $python_command == 0 ]; then
 fi
 
 ## Install dependencies
-sudo -p "[sudo] password to install dependencies> " apt install -y libaom0 libavcodec58 libavformat58 libavutil56 libcodec2-0.8.1 libilmbase23 libopenexr23 libswresample3 libswscale5 libx264-155 libx265-165
+sudo -p "[sudo] password to install dependencies> " apt install -y ffmpeg libaom0 libavcodec58 libavformat58 libavutil56 libcodec2-0.8.1 libilmbase23 libopenexr23 libswresample3 libswscale5 libx264-155 libx265-165
 
 if [ $? -ne 0 ]; then
     echo "There was an error installing dependencies (see above)"
@@ -89,6 +89,21 @@ fi
     ## Install the requiremnts
     pip install -r requirements.txt)
 
+    ## Install platform dependant tflite_runtime
+    if cat /proc/device-tree/model | grep -q 'Raspberry Pi 4'; then
+        (cd $DIR && source ./venv/bin/activate &&
+            pip install python_wheels/tflite_runtime/rpi_4/tflite_runtime-2.5.0.post1-cp37-cp37m-linux_armv7l.whl &&
+            deactivate)
+    elif cat /proc/device-tree/model | grep -q 'Raspberry Pi Zero W'; then
+        (cd $DIR && source ./venv/bin/activate &&
+            pip install --no-deps python_wheels/tflite_runtime/rpi_0/tflite_runtime-2.7.0-cp37-cp37m-linux_armv6l.whl
+            deactivate)
+    else 
+        ## This is a different device to downloaded wheels, try default tflite_runtime install
+        (cd $DIR && source ./venv/bin/activate &&
+            pip install --extra-index-url https://google-coral.github.io/py-repo/ tflite_runtime && 
+            deactivate)
+    fi
 ## Create a "launcher" script that can also be called via `nohup`
 echo "#! /bin/bash" >"$DIR/dynaikontrap.sh"
 echo '(cd "'$DIR'" && source "./venv/bin/activate" && python -m DynAIkonTrap $@)' >>"$DIR/dynaikontrap.sh"

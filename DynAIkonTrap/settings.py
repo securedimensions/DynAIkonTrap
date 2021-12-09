@@ -50,7 +50,10 @@ The JSON file should be structured as follows (of course the values can be chang
             "iir_attenuation": 20
         },
         "animal": {
-            "threshold": 0.1
+            "animal_threshold": 0.1,
+            "detect_humans": true,
+            "human_threshold": 0.1,
+            "fast_animal_detect: true
         },
         "processing": {
             "smoothing_factor": 1,
@@ -134,7 +137,10 @@ class MotionFilterSettings:
 class AnimalFilterSettings:
     """Settings for a :class:`~DynAIkonTrap.filtering.animal.AnimalFilter`"""
 
-    threshold: float = 0.2
+    animal_threshold: float = 0.8
+    detect_humans: bool = True
+    human_threshold: float = 0.2
+    fast_animal_detect: bool = True
 
 
 @dataclass
@@ -269,7 +275,8 @@ def load_settings() -> Settings:
                     )
                     return Settings()
 
-                output_mode = OutputMode(settings_json["output"]["output_mode"])
+                output_mode = OutputMode(
+                    settings_json["output"]["output_mode"])
                 if output_mode == OutputMode.SEND:
                     output = SenderSettings(
                         server=settings_json["output"]["server"],
@@ -300,9 +307,12 @@ def load_settings() -> Settings:
                     PipelineSettings(**settings_json["pipeline"]),
                     CameraSettings(**settings_json["camera"]),
                     FilterSettings(
-                        MotionFilterSettings(**settings_json["filter"]["motion"]),
-                        AnimalFilterSettings(**settings_json["filter"]["animal"]),
-                        ProcessingSettings(**settings_json["filter"]["processing"]),
+                        MotionFilterSettings(
+                            **settings_json["filter"]["motion"]),
+                        AnimalFilterSettings(
+                            **settings_json["filter"]["animal"]),
+                        ProcessingSettings(
+                            **settings_json["filter"]["processing"]),
                     ),
                     SensorSettings(**settings_json["sensor"]),
                     output,
