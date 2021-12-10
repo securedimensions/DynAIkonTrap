@@ -117,7 +117,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._motion_filter = MotionFilter(settings, camera.framerate)
         self._context_len_s: float = context_len_s
         self._proc_queue = deque([], maxlen=100)
-        self._target_time: float = 1.0 / (2.0 * camera.framerate)
+        self._target_time: float = 1.0 / camera.framerate
         self.is_motion: bool = False
         self._threshold_sotv: float = settings.sotv_threshold
         super().__init__(camera)
@@ -153,7 +153,10 @@ class MotionRAMBuffer(PiMotionAnalysis):
                     motion_score = self._motion_filter.run_raw(motion_frame)
                     self.is_motion = motion_score > self._threshold_sotv
                     end = time()
-                    skip_frames = round((end - start) / self._target_time)
+                    if (end - start) > self._target_time:
+                        skip_frames = (1 + (end - start)) % self._target_time
+                    else:
+                        skip_frames = 0
                     count_frames = 0
                 count_frames += 1
                 motion_bytes = (
