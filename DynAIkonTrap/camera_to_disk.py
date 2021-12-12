@@ -114,13 +114,15 @@ class MotionRAMBuffer(PiMotionAnalysis):
         )
         self._bytes_written: int = 0
         self._framerate = camera.framerate
-        self._motion_divisor = 2
+        self._motion_divisor = 1
         self._motion_filter = MotionFilter(settings, camera.framerate/self._motion_divisor)
         self._context_len_s: float = context_len_s
         self._proc_queue = deque([], maxlen=100)
         self._target_time: float = 1.0 / camera.framerate
         self.is_motion: bool = False
         self._threshold_sotv: float = settings.sotv_threshold
+        self._avg_motion_compute_time = 0.0
+        self._motion_times = deque([], maxlen=100)
         super().__init__(camera)
 
         self._proc_thread = Thread(
@@ -149,9 +151,12 @@ class MotionRAMBuffer(PiMotionAnalysis):
                 motion_frame = np.frombuffer(buf, MotionData.motion_dtype)
                 motion_frame = motion_frame.reshape((self.rows, self.cols))
                 motion_score: float = -1.0
+                t1 = time()
                 if (count_frames % self._motion_divisor) == 0:
                     motion_score = self._motion_filter.run_raw(motion_frame)
                     self.is_motion = motion_score > self._threshold_sotv
+                self._motion_times.append(time() - t1)
+                self._avg_motion_compute_time = sum(self._motion_times) / len(self._motion_times)
                 count_frames += 1
                 motion_bytes = (
                     pack("d", float(time()))
@@ -545,7 +550,7 @@ class CameraToDisk:
         try:
             while self._on:
                 self._camera.wait_recording(1)
-                row = ["", ""]
+                row = ["", "", ""]
                 if self._motion_buffer.is_motion:  # motion is detected!
                     logger.info("Motion detected, emptying buffers to disk.")
                     row[0] = time()
@@ -575,6 +580,7 @@ class CameraToDisk:
                         )
                     )
                     row[1] = time() - motion_start_time
+                    row[2] = self._motion_buffer._avg_motion_compute_time
 
                     current_path = self._directory_maker.get_event()[0]
                     with open(fileout, 'a', newline="") as csvfile:
