@@ -146,6 +146,7 @@ class Filter:
 
     def _handle_input_events(self):
         """Process input queue as a list of events: BY_EVENT filter mode."""
+        nice(5)
         while True:
             try:
                 event = self._input_queue.get()
