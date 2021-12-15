@@ -114,7 +114,7 @@ class MotionRAMBuffer(PiMotionAnalysis):
         )
         self._bytes_written: int = 0
         self._framerate = camera.framerate
-        self._motion_divisor = 1
+        self._motion_divisor = 2
         self._motion_filter = MotionFilter(settings, camera.framerate/self._motion_divisor)
         self._context_len_s: float = context_len_s
         self._proc_queue = deque([], maxlen=100)
