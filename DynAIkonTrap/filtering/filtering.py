@@ -175,7 +175,6 @@ class Filter:
             bool: True if event contains an animal, False otherwise.
         """
         frames = list(event.raw_raster_frames)
-        print(len(frames))
         middle_idx = len(frames) // 2
         inference_data = []
         human = False
