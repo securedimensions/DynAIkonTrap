@@ -136,7 +136,6 @@ class AnimalFilter:
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGB2BGR)
         decoded_image = cv2.resize(decoded_image, (self.input_size))
-        cv2.imwrite('img.jpg', decoded_image)
         animal_confidence = 0.0
         human_confidence = 0.0
         if self.detect_humans or self.fast_animal_detect:
