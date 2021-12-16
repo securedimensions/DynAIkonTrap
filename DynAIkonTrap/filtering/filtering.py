@@ -221,7 +221,7 @@ class Filter:
                             csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
                         )
                         csvwriter.writerow(inference_data)
-        return animal and not human
+        return animal or human
         
         return False
 
