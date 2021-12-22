@@ -74,7 +74,7 @@ class AnimalFilter:
             self.input_size = NetworkInputSizes.SSDLITE_MOBILENET_V2
             if settings.detect_humans:
                 self.model = tflite.Interpreter(
-                    model_path="DynAIkonTrap/filtering/ssdlite_mobilenet_v2_animal_human/model.tflite"
+                    model_path="DynAIkonTrap/filtering/models/ssdlite_mobilenet_v2_animal_human/model.tflite"
                 )
             elif settings.fast_animal_detect:
                 self.model = tflite.Interpreter(
