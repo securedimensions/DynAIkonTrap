@@ -157,10 +157,12 @@ class AnimalFilter:
                     output_classes) if label == 0]
                 animal_indexes = [i for (i, label) in enumerate(
                     output_classes) if label == 1]
-                human_confidence = max([output_confidences[i]
-                                       for i in human_indexes])
-                animal_confidence = max([output_confidences[i]
-                                        for i in animal_indexes])
+                if human_indexes:
+                    human_confidence = max([output_confidences[i]
+                                           for i in human_indexes])
+                if animal_indexes:
+                    animal_confidence = max([output_confidences[i]
+                                            for i in animal_indexes])
             else:
                 animal_confidence = max(output_confidences)
 
