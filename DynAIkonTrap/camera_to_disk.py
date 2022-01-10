@@ -35,7 +35,6 @@ from multiprocessing.queues import Queue as QueueType
 from dataclasses import dataclass
 from typing import Tuple
 from threading import Thread
-import csv
 
 try:
     from picamera import PiCamera
@@ -63,7 +62,6 @@ from DynAIkonTrap.logging import get_logger
 logger = get_logger(__name__)
 
 
-fileout = './motion_events.csv'
 
 @dataclass
 class MotionData:
@@ -121,8 +119,6 @@ class MotionRAMBuffer(PiMotionAnalysis):
         self._target_time: float = 1.0 / camera.framerate
         self.is_motion: bool = False
         self._threshold_sotv: float = settings.sotv_threshold
-        self._avg_motion_compute_time = 0.0
-        self._motion_times = deque([], maxlen=100)
         super().__init__(camera)
 
         self._proc_thread = Thread(
@@ -155,8 +151,6 @@ class MotionRAMBuffer(PiMotionAnalysis):
                 if (count_frames % self._motion_divisor) == 0:
                     motion_score = self._motion_filter.run_raw(motion_frame)
                     self.is_motion = motion_score > self._threshold_sotv
-                self._motion_times.append(time() - t1)
-                self._avg_motion_compute_time = sum(self._motion_times) / len(self._motion_times)
                 count_frames += 1
                 motion_bytes = (
                     pack("d", float(time()))
@@ -550,10 +544,8 @@ class CameraToDisk:
         try:
             while self._on:
                 self._camera.wait_recording(1)
-                row = ["", "", ""]
                 if self._motion_buffer.is_motion:  # motion is detected!
                     logger.info("Motion detected, emptying buffers to disk.")
-                    row[0] = time()
                     event_dir = current_path
                     motion_start_time = time()
                     last_buffer_empty_t = time()
@@ -579,15 +571,8 @@ class CameraToDisk:
                             time() - motion_start_time
                         )
                     )
-                    row[1] = time() - motion_start_time
-                    row[2] = self._motion_buffer._avg_motion_compute_time
-
+                    
                     current_path = self._directory_maker.get_event()[0]
-                    with open(fileout, 'a', newline="") as csvfile:
-                        csvwriter = csv.writer(
-                            csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
-                        )
-                        csvwriter.writerow(row)
 
         finally:
             self._camera.stop_recording()

@@ -48,9 +48,6 @@ from DynAIkonTrap.settings import FilterSettings, RawImageFormat
 
 logger = get_logger(__name__)
 
-import csv
-
-fileout = './filtering_out.csv'
 
 
 class FilterMode(Enum):
@@ -165,7 +162,9 @@ class Filter:
                 continue
 
     def _process_event(self, event: EventData) -> bool:
-        """Processes a given :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to determine if it contains an animal. This is achieved by running the saved raw image stream through the animal detector. Detection is performed in a spiral-out pattern, starting at the image in the middle of the event and moving out towards the edges while an animal has not been detected. When an animal detection occurs, this function returns True, this function returns false when the spiral is completed and no animals have been detected.
+        """Processes a given :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to determine if it contains an animal. This is achieved by running the saved raw image stream through the animal detector. Detection is performed in a spiral-out pattern, starting at the image in the middle of the event and moving out towards the edges while an animal has not been detected. When an animal detection occurs, this function returns True, this function returns False when the spiral is completed and no animals have been detected.
+
+        Additionally, if the human detection is enabled, this function will also search for a human in the event. This works exactly the same as the animal detection with the exception of detected human presence causing this function to return False.
 
         A parameter to choose a spiral step size may be declared within :class:`~DynAIkonTrap.settings.ProcessingSettings`, detector_fraction. When set to 1.0, every event image is evaluated in the worst case. Fractional values indicate a number of frames to process per event. The special case, 0.0 evaluates the centre frame only.
         Args:
@@ -185,11 +184,6 @@ class Filter:
             t_start = time()
             is_animal, is_human = self._animal_filter.run(
                 frame, img_format=self._raw_image_format)
-            inference_data.append((time() - t_start, is_animal, is_human))
-            if is_human:
-                  human = True
-            if is_animal:
-                 animal = True
             return is_animal and not is_human
         else:
             # get evenly spaced frames throughout the event
@@ -208,20 +202,10 @@ class Filter:
                 is_animal, is_human = self._animal_filter.run(
                     frame, img_format=self._raw_image_format
                 )
-                inference_data.append((time() - t_start, is_animal, is_human))
                 if is_human:
-                    human = True
-                    break
+                    return False
                 if is_animal:
-                    animal = True
-                    break
-        with open(fileout, 'a', newline="") as csvfile:
-                        csvwriter = csv.writer(
-                            csvfile, delimiter=",", quotechar="|", quoting=csv.QUOTE_MINIMAL
-                        )
-                        csvwriter.writerow(inference_data)
-        return animal or human
-        
+                    return True        
         return False
 
     def _delete_event(self, event: EventData):
