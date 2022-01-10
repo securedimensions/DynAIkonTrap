@@ -76,7 +76,7 @@ class Label(Enum):
     ANIMAL = 1
     UNKNOWN = 2
     CONTEXT = 3
-
+    HUMAN = 4
 
 @dataclass
 class LabelledFrame:
@@ -146,6 +146,14 @@ class Sequence:
             frame (LabelledFrame): The frame to be labelled as being empty
         """
         self._label([frame], Label.EMPTY)
+
+    def label_as_human(self, frame: LabelledFrame):
+        """Label the given frame as containing a human.  Intended to be called based on the output of the animal filter. Only this frame is labelled a containing a human; no smoothing is applied.
+        
+        Args:
+            frame: (LabelledFrame): The frame to be labelled as containing a human
+        """
+        self._label([frame], Label.HUMAN)
 
     def close_gaps(self):
         """Remove small gaps of missing animal predictions in the current sequence. This function removes unlikely gaps in animal detections using the ``smoothing_len``."""
@@ -354,6 +362,8 @@ class MotionLabelledQueue:
 
                 if is_animal and not is_human:
                     sequence.label_as_animal(frame)
+                elif is_human:
+                    sequence.label_as_human(frame)
                 else:
                     sequence.label_as_empty(frame)
                 frame = sequence.get_highest_priority()
