@@ -31,6 +31,7 @@ from os.path import basename
 from shutil import rmtree
 from subprocess import CalledProcessError, call, check_call
 from time import sleep
+from time import time
 from enum import Enum
 from typing import Union
 from numpy import round, linspace
@@ -46,6 +47,7 @@ from DynAIkonTrap.logging import get_logger
 from DynAIkonTrap.settings import FilterSettings, RawImageFormat
 
 logger = get_logger(__name__)
+
 
 
 class FilterMode(Enum):
@@ -141,6 +143,7 @@ class Filter:
 
     def _handle_input_events(self):
         """Process input queue as a list of events: BY_EVENT filter mode."""
+        nice(5)
         while True:
             try:
                 event = self._input_queue.get()
@@ -159,7 +162,9 @@ class Filter:
                 continue
 
     def _process_event(self, event: EventData) -> bool:
-        """Processes a given :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to determine if it contains an animal. This is achieved by running the saved raw image stream through the animal detector. Detection is performed in a spiral-out pattern, starting at the image in the middle of the event and moving out towards the edges while an animal has not been detected. When an animal detection occurs, this function returns True, this function returns false when the spiral is completed and no animals have been detected.
+        """Processes a given :class:`~DynAIkonTrap.filtering.remember_from_disk.EventData` to determine if it contains an animal. This is achieved by running the saved raw image stream through the animal detector. Detection is performed in a spiral-out pattern, starting at the image in the middle of the event and moving out towards the edges while an animal has not been detected. When an animal detection occurs, this function returns True, this function returns False when the spiral is completed and no animals have been detected.
+
+        Additionally, if the human detection is enabled, this function will also search for a human in the event. This works exactly the same as the animal detection with the exception of detected human presence causing this function to return False.
 
         A parameter to choose a spiral step size may be declared within :class:`~DynAIkonTrap.settings.ProcessingSettings`, detector_fraction. When set to 1.0, every event image is evaluated in the worst case. Fractional values indicate a number of frames to process per event. The special case, 0.0 evaluates the centre frame only.
         Args:
@@ -170,9 +175,13 @@ class Filter:
         """
         frames = list(event.raw_raster_frames)
         middle_idx = len(frames) // 2
+        inference_data = []
+        human = False
+        animal = False
         if self._event_fraction <= 0:
             # run detector on middle frame only
             frame = frames[middle_idx]
+            t_start = time()
             is_animal, is_human = self._animal_filter.run(
                 frame, img_format=self._raw_image_format)
             return is_animal and not is_human
@@ -189,13 +198,14 @@ class Filter:
                 key=lambda x: abs(middle_idx - x[0]))
             # process frames from middle, spiral out
             for (_, frame) in lst_indx_frames_from_centre:
+                t_start = time()
                 is_animal, is_human = self._animal_filter.run(
                     frame, img_format=self._raw_image_format
                 )
                 if is_human:
                     return False
                 if is_animal:
-                    return True
+                    return True        
         return False
 
     def _delete_event(self, event: EventData):

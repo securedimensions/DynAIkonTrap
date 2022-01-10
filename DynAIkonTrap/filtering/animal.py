@@ -74,7 +74,7 @@ class AnimalFilter:
             self.input_size = NetworkInputSizes.SSDLITE_MOBILENET_V2
             if settings.detect_humans:
                 self.model = tflite.Interpreter(
-                    model_path="DynAIkonTrap/filtering/ssdlite_mobilenet_v2_animal_human/model.tflite"
+                    model_path="DynAIkonTrap/filtering/models/ssdlite_mobilenet_v2_animal_human/model.tflite"
                 )
             elif settings.fast_animal_detect:
                 self.model = tflite.Interpreter(
@@ -136,7 +136,6 @@ class AnimalFilter:
             )
             decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_RGB2BGR)
         decoded_image = cv2.resize(decoded_image, (self.input_size))
-        cv2.imwrite('img.jpg', decoded_image)
         animal_confidence = 0.0
         human_confidence = 0.0
         if self.detect_humans or self.fast_animal_detect:
@@ -158,10 +157,12 @@ class AnimalFilter:
                     output_classes) if label == 0]
                 animal_indexes = [i for (i, label) in enumerate(
                     output_classes) if label == 1]
-                human_confidence = max([output_confidences[i]
-                                       for i in human_indexes])
-                animal_confidence = max([output_confidences[i]
-                                        for i in animal_indexes])
+                if human_indexes:
+                    human_confidence = max([output_confidences[i]
+                                           for i in human_indexes])
+                if animal_indexes:
+                    animal_confidence = max([output_confidences[i]
+                                            for i in animal_indexes])
             else:
                 animal_confidence = max(output_confidences)
 

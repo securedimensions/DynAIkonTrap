@@ -62,6 +62,7 @@ from DynAIkonTrap.logging import get_logger
 logger = get_logger(__name__)
 
 
+
 @dataclass
 class MotionData:
     """Class for holding a motion vector data type"""
@@ -111,10 +112,11 @@ class MotionRAMBuffer(PiMotionAnalysis):
         )
         self._bytes_written: int = 0
         self._framerate = camera.framerate
-        self._motion_filter = MotionFilter(settings, camera.framerate)
+        self._motion_divisor = 1
+        self._motion_filter = MotionFilter(settings, camera.framerate/self._motion_divisor)
         self._context_len_s: float = context_len_s
         self._proc_queue = deque([], maxlen=100)
-        self._target_time: float = 1.0 / (2.0 * camera.framerate)
+        self._target_time: float = 1.0 / camera.framerate
         self.is_motion: bool = False
         self._threshold_sotv: float = settings.sotv_threshold
         super().__init__(camera)
@@ -145,13 +147,10 @@ class MotionRAMBuffer(PiMotionAnalysis):
                 motion_frame = np.frombuffer(buf, MotionData.motion_dtype)
                 motion_frame = motion_frame.reshape((self.rows, self.cols))
                 motion_score: float = -1.0
-                if count_frames >= skip_frames:
-                    start = time()
+                t1 = time()
+                if (count_frames % self._motion_divisor) == 0:
                     motion_score = self._motion_filter.run_raw(motion_frame)
                     self.is_motion = motion_score > self._threshold_sotv
-                    end = time()
-                    skip_frames = round((end - start) / self._target_time)
-                    count_frames = 0
                 count_frames += 1
                 motion_bytes = (
                     pack("d", float(time()))
@@ -545,7 +544,6 @@ class CameraToDisk:
         try:
             while self._on:
                 self._camera.wait_recording(1)
-
                 if self._motion_buffer.is_motion:  # motion is detected!
                     logger.info("Motion detected, emptying buffers to disk.")
                     event_dir = current_path
@@ -573,8 +571,9 @@ class CameraToDisk:
                             time() - motion_start_time
                         )
                     )
-
+                    
                     current_path = self._directory_maker.get_event()[0]
+
         finally:
             self._camera.stop_recording()
 

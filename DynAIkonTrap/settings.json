@@ -22,16 +22,16 @@
             "iir_attenuation": 20
         },
         "animal": {
-            "animal_threshold": 0.75,
+            "animal_threshold": 0.50,
             "detect_humans": false,
-            "human_threshold": 0.80,
+            "human_threshold": 0.50,
             "fast_animal_detect": true
         },
         "processing": {
             "smoothing_factor": 1,
             "max_sequence_period_s": 10.0,
             "context_length_s": 3.0,
-            "detector_fraction": 1.0
+            "detector_fraction": 0.25
         }
     },
     "sensor": {
