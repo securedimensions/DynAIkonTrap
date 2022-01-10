@@ -16,7 +16,9 @@
 """
 This module provides a generic interface to an animal detector. The system is fairly agnostic of the specific animal detection mechanism beings used, as the input to the :class:`AnimalFilter` is a JPEG, RGB or RGBA image and the output a confidence in the image containing an animal.
 
-A WCS-trained Tiny YOLOv4 model is used in this implementation, but any other architecture could be substituted in its place easily. Such a substitution would not require any changes to the module interface.
+The animal detection model may be chosen from a range of pre-trained detector networks, configurable via :class:`~DynAIkonTrap.settings.AnimalFilterSettings`. Choices currently range between: a SSDLite MobileNet v2 model trained on WCS data, int32 quantised, a SSDLite MobileNet v2 model trained on human and WCS data, int32 quantised and a YOLOv4-tiny model trained on WCS data
+
+The function, :func:`AnimalFilter.run` produces a tuple result, the first result indicates animal presence; the second result human presence. If the model used is trained on WCS data only, the second result will always be False
 """
 from dataclasses import dataclass
 from enum import Enum
