@@ -60,8 +60,8 @@ Follow these steps:
         ```sh
         xdg-open https://cos4cloud-eosc.eu
         ```
-
 1. Please configure the DynAiKonTrap to produce videos (mp4) - see [DynAIKonTrap Readme](../README.md) for more inforamtion
+1. Make sure that the `STAplus` file is executeable by typing `chmod +x STAplus` 
 
 ## Running the *STAplus* app
 You can simply start the application via the command prompt from the dictory where you put the *STAplus* application:
