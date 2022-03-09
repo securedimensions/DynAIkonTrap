@@ -1,0 +1,1062 @@
+
+LICENSE=$(cat << EOF
+Copyright 2021-2022 Secure Dimensions GmbH
+ 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+ 
+    http://www.apache.org/licenses/LICENSE-2.0
+ 
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+EOF
+)
+
+DISCLAIMER=$(cat << EOF
+THIS IS EXPERIMENTAL SOFTWARE NOT TO BE SHARED WITH OTHERS.
+
+IT IS ONLY TO BE USED TO VALIDATE THE POSSIBILITY TO UPLOAD
+DATA CREATED BY THE DYNAIKON CAMERA TRAP TO A REPOSITORY
+BASED ON THE DATAMODEL AND API EXTENSION DEVELOPED BY
+ SECURE DIMENSIONS DURING WITHIN THE COS4CLOUD
+PROJECT. WHEN CHOOSING A PUBLIC UPLOADING URL, ALL YOUR 
+DATA BECOMES AVAILABLE TO ANY USER ON THE INTERNET.
+
+THE UPLOAD OF DATA IS NOT CHECKED, FILTERED OR OTHERWISE
+BLURRED TO MEET PRIVACY CONCERNS. YOU ARE RESPONSIBLE TO 
+MAKE SURE THAT THE UPLOADED INFORMATION DOES NOT VIOLATE
+TO THE LAW AND DOES NOT UNVEIL PRIVATE OR SENSITIVE INFORMATION.
+
+TO BE USED FOR EVALUATION ONLY. 
+
+BY RUNNING THIS SOFTWARE YOU AGREE TO THE DISCLAIMER ABOVE.
+EOF
+)
+
+init_licenses () 
+{ 
+    local request=$(cat -s << EOF
+{
+    "requests": [
+        {
+            "id": "CC_PD",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC0",
+                "definition": "https://creativecommons.org/publicdomain/zero/1.0/",
+                "description": "CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/cc-zero.png"
+            }
+        },
+        {
+            "id": "CC_BY",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY 3.0",
+                "definition": "https://creativecommons.org/licenses/by/3.0/deed.en",
+                "description": "The Creative Commons Attribution license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by.png"
+            }
+        },
+        {
+            "id": "CC_BY_NC",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY-NC 3.0",
+                "definition": "https://creativecommons.org/licenses/by-nc/3.0/deed.en",
+                "description": "The Creative Commons Attribution % Non-commercial license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc.png"
+            }
+        },
+        {
+            "id": "CC_BY_ND",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY-ND 3.0",
+                "definition": "https://creativecommons.org/licenses/by-nd/3.0/deed.en",
+                "description": "The Creative Commons Attribution & NoDerivs license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nd.png"
+            }
+        },
+        {
+            "id": "CC_BY_SA",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY-SA 3.0",
+                "definition": "https://creativecommons.org/licenses/by-sa/3.0/deed.en",
+                "description": "The Creative Commons Attribution & Share-alike license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-sa.png"
+            }
+        },
+        {
+            "id": "CC_BY_NC_SA",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY-NC-SA 3.0",
+                "definition": "https://creativecommons.org/licenses/by-nc-sa/3.0/deed.en",
+                "description": "The Creative Commons Attribution & Share-alike & Non-commercial license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc-sa.png"
+            }
+        },
+        {
+            "id": "CC_BY_NC_ND",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Licenses",
+            "body": {
+                "name": "CC BY-NC-ND 3.0",
+                "definition": "https://creativecommons.org/licenses/by-nc-nd/3.0/deed.en",
+                "description": "The Creative Commons Attribution & NoDerivs & Non-commercial license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc-sa.png"
+            }
+        }
+    ]
+}
+EOF
+);
+    local response=$(echo $request | curl -s -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -X POST --data-binary @- $STA_URL/\$batch);
+    logger "Response from batch-processing: " . $response;
+    if [ "$(echo $response | jq '.responses[].status')" == "201" ]; then
+        logger "Licenses created";
+    else
+        logger "Licenses cannot be created";
+    fi;
+    LICENSES=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" $STA_URL/Licenses);
+    logger "Existing Licenses: " . $LICENSES
+}
+
+init_party () 
+{ 
+    logger "Creating Party";
+    local request=$(cat -s << EOF
+{
+        "name": "$NAME",
+        "description": "",
+        "displayName": "$NICK_NAME",
+        "role": "individual",
+        "authId": "$AUTH_ID"
+}
+EOF
+);
+    logger request=$request;
+    PARTY_ID=$(curl -s $STA_URL/Parties?\$filter=authId%20eq%20%27$AUTH_ID%27|jq -r '.value[]."@iot.id"');
+    logger PARTY_ID=$PARTY_ID;
+    if [ -z $PARTY_ID ]; then
+        echo $request | curl -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -X POST --data-binary @- $STA_URL/Parties;
+        PARTY_ID=$(curl -s $STA_URL/Parties?\$filter=authId%20eq%20%27$AUTH_ID%27|jq -r '.value[]."@iot.id"');
+        logger PARTY_ID=$PARTY_ID;
+        if [ -z $PARTY_ID ]; then
+            echo "ERROR: Party could not be created";
+            return -3;
+        fi;
+    fi
+}
+
+setup () 
+{ 
+    if [ -f "$AUTH_ID.json" ]; then
+        config=$(cat -s $AUTH_ID.json | jq '.');
+        if [ ! -z "$config" ]; then
+            logger "Using existing configuration";
+            logger config=$config;
+            AUTH_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.auth_id');
+            PROJECT_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.project_id');
+            logger PROJECT_ID=$PROJECT_ID;
+            THING_PI_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.thing_ids[0]');
+            logger THING_PI_ID=$THING_PI_ID;
+            THING_ENV_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.thing_ids[1]');
+            logger THING_ENV_ID=$THING_ENV_ID;
+            DS_VISUAL_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.datastream_ids[0]');
+            logger DS_VISUAL_ID=$DS_VISUAL_ID;
+            DS_TAXON_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.datastream_ids[1]');
+            logger DS_TAXON_ID=$DS_TAXON_ID;
+            MDS_ENV_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.multi_datastream_ids[0]');
+            logger MDS_ENV_ID=$MDS_ENV_ID;
+            return;
+        fi;
+    fi;
+    logger "Creating new configuration";
+    init_gps;
+    init_location;
+    init_licenses;
+    init_party;
+    init_project;
+    init_things;
+    init_datastream;
+    init_multi_datastream;
+    init_sta;
+    local sta_ids=$(cat -s << EOF
+{
+    "auth_id": "$AUTH_ID",
+    "project_id": "$PROJECT_ID",
+    "thing_ids": [
+        "$THING_PI_ID",
+        "$THING_ENV_ID"
+    ],
+    "datastream_ids": [
+        "$DS_VISUAL_ID",
+        "$DS_TAXON_ID"
+    ],
+    "multi_datastream_ids": [
+        "$MDS_ENV_ID"
+    ]
+}
+EOF
+);
+    logger STA_IDs=$sta_ids;
+    logger "Writing sta_ids to file $AUTH_ID.json";
+    umask 277;
+    echo $sta_ids > $AUTH_ID.json
+}
+
+init_gps () 
+{ 
+    local usb;
+    while true; do
+        if [ -e "/dev/ttyUSB0" ]; then
+            usb=/dev/ttyUSB0;
+            echo "Sensor Board found at USB0";
+            break;
+        else
+            if [ -e "/dev/ttyUSB1" ]; then
+                usb=/dev/ttyUSB1;
+                echo "Sensor Board found at USB1";
+                break;
+            else
+                if [ -e "/dev/ttyUSB2" ]; then
+                    usb=/dev/ttyUSB2;
+                    echo "Sensor Board found at USB2";
+                    break;
+                else
+                    if [ -e "/dev/ttyUSB3" ]; then
+                        usb=/dev/ttyUSB3;
+                        echo "Sensor Board found at USB3";
+                        break;
+                    else
+                        echo "ERROR: No Sensor Board found! Please connect the Sensor Board via USB now.";
+                        sleep 10;
+                    fi;
+                fi;
+            fi;
+        fi;
+    done;
+    echo "Determining GPS location, please wait (max. 20 seconds)...";
+    while true; do
+        local env=$(python3 - <<EOF
+import sys;
+from serial import Serial, SerialException;
+ser=Serial("$usb", 57600, timeout=2);
+attempt = 1;
+while attempt < 10:
+    data=ser.readline();
+    if data == b'':
+        ser.write(b'e');
+        attempt += 1;
+    else:
+        sys.stdout.write(data.decode('utf-8'));
+        env=data.decode('utf-8');
+        if env.startswith('selF') and env.find('alti') != -1:
+            sys.stdout.write(env);
+            break;
+
+EOF
+);
+        logger env="$env";
+        local lat;
+        local lon;
+        for elem in $env;
+        do
+            local x=$(echo -n $elem | egrep -i "([0-9]*[.])?[0-9]+[N,S]$");
+            if test "$x" != ""; then
+                lat=$(echo $x|sed -e s/N$//);
+                if test "$lat" == ""; then
+                    lat=$(echo "-"$lat);
+                fi;
+                break;
+            else
+                lat="0.0";
+            fi;
+        done;
+        logger lat="$lat";
+        for elem in $env;
+        do
+            local x=$(echo -n $elem | egrep -i "([0-9]*[.])?[0-9]+[E,W]$");
+            if test "$x" != ""; then
+                lon=$(echo $x|sed -e s/E$//);
+                if test "$lon" == ""; then
+                    lon=$(echo "-"$lon);
+                fi;
+                break;
+            else
+                lon="0.0";
+            fi;
+        done;
+        logger lon="$lon";
+        echo GPS location determined is LAT=$lat LON=$lon;
+        echo "";
+        local answer="n";
+        while true; do
+            read -p "To accept this location please type 'y'. If location is empty or not correct, please type 'r' to repeat the GPS position check. If Sensor Board was recently connected or no free visual to the sky is present, it can help to repeat the process multiple times. You can set the location manually if automatic position determination is not possible by typing 'e' [$answer] " answer;
+            if [ -z $answer ]; then
+                answer="n";
+                break;
+            fi;
+            if [ $answer == "y" ] || [ $answer == "n" ] || [ $answer == "e" ]; then
+                break;
+            fi;
+        done;
+        if test $answer == "y"; then
+            break;
+        else
+            if test $answer == "e"; then
+                read -p "Please provide the LATITUDE: " lat;
+                read -p "Please provide the LONGITUTE: " lon;
+                break;
+            else
+                echo "Checking GPS location again. Please wait (max. 20 seconds)...";
+            fi;
+        fi;
+    done;
+    LAT=$lat;
+    LON=$lon;
+    ENV_ID=$(echo $env | grep -oP "usid\s+\K\w+")
+}
+
+init_location () 
+{ 
+    echo 'The GPS location will now be associated to the OSM municipality level "Major Roads".';
+    local place=$(curl --silent --connect-timeout 10 "https://nominatim.openstreetmap.org/reverse?addressdetails=0&polygon_geojson=1&zoom=16&lat=$LAT&lon=$LON&format=json");
+    echo "The following information was received:";
+    local lat=$(echo $place | jq '.lat');
+    local lon=$(echo $place | jq '.lon');
+    local display_name=$(echo $place | jq '.display_name');
+    local boundingbox=$(echo $place | jq '.boundingbox');
+    local polygon=$(echo $place | jq '.geojson');
+    echo Latitude: $lat;
+    echo Longitude: $lon;
+    echo Display Name: $display_name;
+    echo Bounding Box: $boundingbox;
+    echo Polygon: $polygon;
+    echo "You have the choice to associate the exact GPS location or the municipality area with your Camera Trap. If you select the exact position, you will have the opportunity to edit the location. This should be done if being concerned to publish your exact GPS location. You could for example remove some last digits to decrease the GPS location's accuracy.";
+    local answer=p;
+    while true; do
+        read -p "If you like to use area represented by the polygon above, please type 'p'. If you like to use the exact GPS location, please use 'l' [p]: " answer;
+        if [ -z $answer ]; then
+            answer="p";
+            break;
+        fi;
+        if [ $answer == "l" ] || [ $answer == "p" ]; then
+            break;
+        fi;
+    done;
+    if test $answer == "l"; then
+        read -p "Please provide the LATITUDE [$LAT]: " lat;
+        if [ -z "$lat" ]; then
+            lat=$LAT;
+        fi;
+        read -p "Please provide the LONGITUTE [$LON]: " lon;
+        if [ -z "$lon" ]; then
+            lon=$LON;
+        fi;
+        LOCATION=$(cat -s << EOF
+{
+  "name": "The camera trap location",
+  "description": $display_name,
+  "encodingType": "application/geo+json",
+  "location": {
+    "type": "Point",
+    "coordinates": [$lat, $lon]
+  }
+}
+EOF
+);
+    else
+        LOCATION=$(cat -s << EOF
+{
+  "name": "The camera trap location",
+  "description": $display_name,
+  "encodingType": "application/geo+json",
+  "location": $polygon
+}
+EOF
+);
+    fi;
+    logger LOCATION=$LOCATION
+}
+
+init_project () 
+{ 
+    echo "Please provide information how you like to describe your activity";
+    echo "";
+    local name="Species Detection by DynAIkon Camera Trap";
+    local description="The automatic detection of species by all participating camera traps";
+    local terms_of_use="You may join my project but do not upload sensitive information";
+    local privacy_policy="This project does not collect personal information";
+    local response;
+    read -p "Please provide the name for your project [$name]: " response;
+    if [ ! -z "$response" ]; then
+        name=$response;
+    fi;
+    read -p "Please provide the description for your project [$description]: " response;
+    if [ ! -z "$response" ]; then
+        description=$response;
+    fi;
+    PROJECT=$(cat -s << EOF
+{
+        "name": "$name", 
+        "description": "$description",
+        "termsOfUse": "$terms_of_use",
+        "privacyPolicy": "$privacy_policy",
+	    "creationTime": "$NOW",
+        "runTime": ["$NOW", null],
+        "classification": "public"
+}
+EOF
+);
+    logger PROJECT=$PROJECT | jq '.'
+}
+
+init_things () 
+{ 
+    THING_PI=$(cat -s << EOF
+{
+    "name": "Raspberry Pi 4 B, 4x 1,5 GHz, 4 GB RAM, WLAN, BT",
+    "description": "Raspberry Pi 4 Model B is the latest product in the popular Raspberry Pi range of computers",
+    "Party": {"@iot.id": "$PARTY_ID"},
+    "properties": {
+        "id": "$(cat /proc/cpuinfo|grep -i serial | cut -d ":" -f2 | sed 's/ //g')"
+    },
+    "Locations": [ $LOCATION ]
+}
+EOF
+);
+    logger THING_PI=$(echo $THING_PI | jq '.');
+    THING_ENV=$(cat -s << EOF
+{
+    "name": "Universal Environment Board",
+    "description": "urSense 1.28",
+    "Party": {"@iot.id": "$PARTY_ID"},
+    "properties": {
+        "id": "$ENV_ID",
+        "Temperature": "temperature on board",
+        "Humidity": "air humidity",
+        "Pressure": "air pressure sensor",
+        "GPS": "GPS unit available"
+    },
+    "Locations": [ $LOCATION ]
+}
+EOF
+);
+    logger THING_ENV=$(echo $THING_ENV | jq '.')
+}
+
+init_datastream () 
+{ 
+    local license_no="";
+    local license_max=$(echo $LICENSES| jq '.value |length');
+    echo "You need to select the license for the video / photo capture of the detected animal. Please choose from the following licenes:";
+    echo $LICENSES | jq '.value | to_entries[]| "license no. \(.key): \(.value | .name), \(.value | .description), \(.value | .definition), Attribution to \(.value | .properties.attribution)"';
+    while true; do
+        read -p "Please type the license no.: " license_no;
+        if [ -z "$license_no" ]; then
+            continue;
+        fi;
+        if [ "$license_no" -lt "0" ] || [ "$license_no" -ge "$license_max" ]; then
+            continue;
+        fi;
+        break;
+    done;
+    license_id=$(echo $LICENSES| jq --arg no $license_no '.value | to_entries[]| select(.key|tostring==$no) | "\(.value | ."@iot.id")"');
+    logger license_id=$license_id;
+    DS_VISUAL=$(cat -s << EOF
+        {
+            "unitOfMeasurement": {
+                "name": "n/a",
+                "symbol": "",
+                "definition": "https://www.merriam-webster.com/dictionary/picture"
+            },
+            "name": "photo datastream",
+            "description": "this datastream is about pictures",
+            "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+            "ObservedProperty": {
+                "name": "Picture",
+                "definition": "https://www.merriam-webster.com/dictionary/picture",
+                "description": "The image taken by the camera (the sensor)"
+            },
+            "Sensor": {
+                "name": "Pi NoIR - Raspberry Pi Infrared Camera Module",
+                "description": "Sony IMX 219 PQ CMOS image sensor in a fixed-focus module with IR blocking filter removed",
+                "encodingType": "application/pdf",
+                "metadata": "https://cdn-reichelt.de/documents/datenblatt/A300/RASP_CAN_2.pdf"
+            },
+            "License": {"@iot.id": $license_id},
+            "Party": {"@iot.id": "$PARTY_ID"},
+            "Thing": {"@iot.id": "\$thingRasPi"},
+            "Project": {"@iot.id": "\$myProject"}
+        }
+EOF
+);
+    logger DS_VISUAL=$(echo $DS_VISUAL |jq '.');
+    DS_TAXON=$(cat -s << EOF
+        {
+            "unitOfMeasurement": {
+                "name": "GBIF Identity",
+                "symbol": "n/a",
+                "definition": "https://www.gbif.org/species"
+            },
+            "name": "GBIF Identifier for Species",
+            "description": "The GBIF identifiers for species",
+            "observationType": "GBIF Taxonomy",
+            "ObservedProperty": {
+                "name": "Taxon",
+                "definition": "https://www.gbif.org/dataset/d7dddbf4-2cf0-4f39-9b2a-bb099caae36c",
+                "description": "GBIF Backbone Taxonomy"
+            },
+            "Sensor": {
+                "name": "GBIF Species Taxonomy API",
+                "description": "The GBiF API that returns species records based on search",
+                "encodingType": "text/html",
+                "metadata": "https://www.gbif.org/developer/species#searching"
+            },
+            "Thing": {
+                "name": "GBIF API",
+                "description": "The GBIF API v1",
+                "Party": {"@iot.id": "$PARTY_ID"}
+            },
+            "License": {
+                "name": "CC BY-NC 3.0",
+                "definition": "https://creativecommons.org/licenses/by-nc/3.0/deed.en",
+                "description": "The Creative Commons Attribution % Non-commercial license",
+                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nc.png",
+                "properties": {"attribution": "Global Biodiversity Information Facility (GBIF)"}
+            },
+            "Party": {"@iot.id": "$PARTY_ID"},
+            "Project": {"@iot.id": "\$myProject"}
+        }
+EOF
+);
+    logger DS_TAXON=$(echo $DS_TAXON | jq '.')
+}
+
+init_multi_datastream () 
+{ 
+    local license_no="";
+    local license_max=$(echo $LICENSES| jq '.value |length');
+    echo "You need to select the license for the air measurements. Please choose from the following licenes:";
+    echo $LICENSES | jq '.value | to_entries[]| "license no. \(.key): \(.value | .name), \(.value | .description), \(.value | .definition)"';
+    while true; do
+        read -p "Please type the license no.: " license_no;
+        if [ -z "$license_no" ]; then
+            continue;
+        fi;
+        if [ "$license_no" -lt "0" ] || [ "$license_no" -ge "$license_max" ]; then
+            continue;
+        fi;
+        break;
+    done;
+    license_id=$(echo $LICENSES| jq --arg no $license_no '.value | to_entries[]| select(.key|tostring==$no) | "\(.value | ."@iot.id")"');
+    logger license_id=$license_id;
+    MDS=$(cat -s << EOF
+{
+            "name": "Environmental Datastream from Camera Trap",
+            "description": "Environment data for air temperature, humidity, pressure",
+            "multiObservationDataTypes": [
+                "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+                "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+                "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+                "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement"
+            ],
+            "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_ComplexObservation",
+            "Party": {"@iot.id": "$PARTY_ID"},
+            "properties": {
+                "fieldOne": "Temperature",
+                "fieldTwo": "Humidity",
+                "fieldThree": "Preasure",
+                "fieldFour": "Luminance"
+            },
+            "unitOfMeasurements": [
+                {
+                    "name": "Temperature",
+                    "symbol": "C",
+                    "definition": "http://www.qudt.org/qudt/owl/1.0.0/qudt/index.html#TemperatureUnit"
+                },
+                {
+                    "name": "Humidity",
+                    "symbol": "RH",
+                    "definition": "https://byjus.com/physics/unit-of-humidity/"
+                },
+                {
+                    "name": "Pressure",
+                    "symbol": "mbar",
+                    "definition": "https://en.wikipedia.org/wiki/Atmospheric_pressure"
+                },
+                {
+                    "name": "Luminance",
+                    "symbol": "cd/m2",
+                    "definition": "https://en.wikipedia.org/wiki/Luminance"
+                }
+            ],
+            "License": {"@iot.id": $license_id},
+            "Thing": {"@iot.id": "\$thingEnv"},
+            "Sensor": {
+                "name": "Environment Sensor",
+                "description": "This sensor produces temperature, humidity and pressure",
+                "encodingType": "text/html",
+                "metadata": "https://google.de",
+                "properties": {"calibrated": "$NOW"}
+            },
+            "ObservedProperties": [
+                {
+                    "name": "DegC",
+                    "definition": "https://en.wikipedia.org/wiki/Temperature",
+                    "description": "Air Temperature in Celcius"
+                },
+                {
+                    "name": "Relative Air Humidity",
+                    "definition": "https://en.wikipedia.org/wiki/Humidity",
+                    "description": "Air Humidity"
+                },
+                {
+                    "description": "Atmospheric pressure",
+                    "definition": "https://en.wikipedia.org/wiki/Atmospheric_pressure",
+                    "name": "Atmospheric pressure"
+                },
+                {
+                    "description": "Luminance",
+                    "definition": "https://en.wikipedia.org/wiki/Luminance",
+                    "name": "Luminance"
+                }
+            ],
+            "Project": {"@iot.id": "\$myProject"}
+}
+EOF
+);
+    logger MDS=$(echo $MDS | jq '.')
+}
+
+init_sta () 
+{ 
+    local request=$(cat -s << EOF
+{
+    "requests": 
+    [
+        {
+            "id": "myProject",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Projects",
+            "body": $PROJECT
+        },
+        {
+            "id": "thingRasPi",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Things",
+            "body": $THING_PI
+        },
+        {
+            "id": "thingEnv",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Things",
+            "body": $THING_ENV
+        },
+        {
+            "id": "dsVisual",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Datastreams",
+            "body": $DS_VISUAL
+        },
+        {
+            "id": "dsTaxon",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Datastreams",
+            "body":  $DS_TAXON
+        },
+        {
+            "id": "mdsEnvironment",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "MultiDatastreams",
+            "body": $MDS
+        }
+    ]
+}
+EOF
+);
+    logger request=$request
+    local response=$(echo $request | curl -s -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" -X POST --data-binary @- $STA_URL/\$batch);
+    logger "Response from batch-processing: " . $response;
+    PROJECT_ID=$(echo $response | jq '.responses[]|select(.id=="myProject")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger PROJECT_ID="$PROJECT_ID";
+    THING_PI_ID=$(echo $response | jq '.responses[]|select(.id=="thingRasPi")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger THING_PI_ID="$THING_PI_ID";
+    THING_ENV_ID=$(echo $response | jq '.responses[]|select(.id=="thingEnv")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger THING_ENV_ID="$THING_ENV_ID";
+    DS_VISUAL_ID=$(echo $response | jq '.responses[]|select(.id=="dsVisual")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger DS_VISUAL_ID="$DS_VISUAL_ID";
+    DS_TAXON_ID=$(echo $response | jq '.responses[]|select(.id=="dsTaxon")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger DS_TAXON_ID="$DS_TAXON_ID";
+    MDS_ENV_ID=$(echo $response | jq '.responses[]|select(.id=="mdsEnvironment")|.location' | grep -oP '(?<=\().*(?=\))');
+    logger MDS_ENV_ID="$MDS_ENV_ID"
+}
+
+init_auth () 
+{ 
+    if [ -z $(xdg-settings get default-web-browser) ]; then
+        echo "ERROR: You must set a default Web Browser first!";
+        exit;
+    fi;
+    local client_id="bd7b85f7-1450-3958-ab2c-4e69ca6fb387";
+    local redirect_uri="http://127.0.0.1:4711/camera-trap-app";
+    local state_in=$(uuidgen);
+    local nonce=$(uuidgen);
+    local prompt=login;
+    local code_verifier=$(openssl rand -hex 16);
+    local code_challenge=$(echo -n $code_verifier | openssl sha256 -binary | base64 | sed 's/+/-/g' | sed 's/\//_/g' | cut -c1-43);
+    local default_browser=$(xdg-settings get default-web-browser);
+    local browser_name=$(grep Name= /usr/share/applications/$default_browser | head -1 | cut -d "=" -f2);
+    echo "";
+    echo "Opening your default Web Browser ($browser_name) to login via AUTHENIX ...";
+    screen -A -m -d -S BROWSER xdg-open "https://www.authenix.eu/oauth/authorize?response_type=code%20id_token&client_id=$client_id&redirect_uri=$redirect_uri&scope=openid%20saml%20profile%20offline_access%20de.secure-dimensions.demo.cos4cloud:staplus&prompt=$prompt&state=$state_in&nonce=$nonce&code_challenge_method=S256&code_challenge=$code_challenge" > /dev/null 2>&1;
+    if [ -f ".nc" ]; then
+        rm -f .nc;
+    fi;
+    while [ ! -f ".nc" ]; do
+        local line=$({ echo -e 'HTTP/1.1 200 OK\r\n\r\nLogin successful. Please return to the STAplus App...'; } | nc -N -l -q1 4711);
+        logger line="$line";
+        if [ ! -z "$line" ]; then
+            local path=$(echo -n $line | cut -d " " -f2|cut -d "?" -f1);
+            logger path=$path;
+            if [ $path == "/camera-trap-app" ]; then
+                local query=$(echo -n $line | cut -d " " -f2|cut -d "?" -f2);
+                logger query=$query;
+                local state_out="";
+                local code="";
+                local id_token="";
+                for p in ${query//&/ };
+                do
+                    local kvp=(${p/=/ });
+                    if [ ${kvp[0]} == "state" ]; then
+                        state_out=${kvp[1]};
+                    else
+                        if [ ${kvp[0]} == "code" ]; then
+                            code=${kvp[1]};
+                        else
+                            if [ ${kvp[0]} == "id_token" ]; then
+                                id_token=${kvp[1]};
+                            fi;
+                        fi;
+                    fi;
+                done;
+                logger state="$state_out";
+                if [ "$state_in" != "$state_out" ]; then
+                    echo "ERROR: The received authentication response does not seem to belong to the request";
+                    exit;
+                fi;
+                logger code="$code";
+                logger id_token="$id_token";
+                AUTH_ID=$(echo -n $id_token| cut -d "." -f2| base64 -d| jq -r '.sub');
+                logger AUTH_ID=$AUTH_ID;
+                NICK_NAME=$(echo -n $id_token| cut -d "." -f2| base64 -d| jq -r '.preferred_username');
+                logger NICK_NAME=$NICK_NAME;
+                NAME=$(echo -n $id_token| cut -d "." -f2| base64 -d| jq -r '.name');
+                logger NAME=$NAME;
+                touch .nc;
+            fi;
+        fi;
+    done;
+    local token=$(curl --silent -X POST    -H "Content-Type:application/x-www-form-urlencoded"    -d "client_id=$client_id"    -d "code_verifier=$code_verifier"    -d "grant_type=authorization_code"    -d "response_type=token refresh_token"    -d "code=$code"    -d "redirect_uri=$redirect_uri"    -d "scope=openid saml profile offline_access de.secure-dimensions.demo.cos4cloud:staplus"  'https://www.authenix.eu/oauth/token');
+    logger token="$token";
+    if [ "$(echo $token | jq -r '.error')" != "null" ]; then
+        echo "ERROR: $(echo $token | jq '.error_description')";
+        exit;
+    fi;
+    ACCESS_TOKEN=$(echo $token | jq -r '.access_token');
+    logger ACCESS_TOKEN=$ACCESS_TOKEN;
+    REFRESH_TOKEN=$(echo $token | jq -r '.refresh_token');
+    logger REFRESH_TOKEN=$REFRESH_TOKEN;
+    local expires_in=$(echo $token | jq '.expires_in');
+    local seconds=$(date +%s);
+    logger expires_in=$expires_in;
+    EXPIRES=$(($seconds + $expires_in));
+    logger EXPIRES=$EXPIRES
+}
+
+feeder () 
+{ 
+    vtt_file="$1".vtt;
+    mp4_file="$1".mp4;
+    png_file="$1".png;
+    dir_name=$(dirname $vtt_file);
+    if [ -f "$1".log ]; then
+        rm -f "$1".log;
+    fi;
+    local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ");
+    local date=$(echo $vtt_file | cut -d '_' -f 1 | tr -d $dir_name | tr -d "/" );
+    local time=$(sed '/^$/d' $vtt_file | cut -d '@' -f 2 -s);
+    local datetime=$date'T'$time;
+    logger datetime="$datetime";
+    local data=$(cat $vtt_file | grep ^T | grep -v '?');
+    local temperature=$(echo $data | cut -d "-" -f1 | grep -E -o "[0-9,.]+");
+    if [ -z "$temperature" ]; then
+        temperature="null";
+    fi;
+    logger temperature="$temperature";
+    local relative_humidity=$(echo $data | cut -d "-" -f2 | grep -E -o "[0-9,.]+");
+    if [ -z "$relative_humidity" ]; then
+        relative_humidity="null";
+    fi;
+    logger relative_humidity="$relative_humidity";
+    local luminance=$(echo $data | cut -d "-" -f3 | grep -E -o "[0-9,.]+");
+    if [ -z "$luminance" ]; then
+        luminance="null";
+    fi;
+    logger luminance="$luminance";
+    local pressure=$(echo $data | cut -d "-" -f4 | grep -E -o "[0-9,.]+");
+    if [ -z "$pressure" ]; then
+        pressure="null";
+    fi;
+    logger pressure="$pressure";
+    obs_camera_id=$(uuidgen);
+    local observation_camera=$(cat -s << EOF
+{
+    "result": "",
+    "phenomenonTime": "$datetime",
+    "resultTime": "$now",
+    "parameters": {"id": "$obs_camera_id", "filename": "$mp4_file"},
+    "Datastream": {
+      "@iot.id": $DS_VISUAL_ID
+    }
+}
+EOF
+);
+    logger observation_camera=$(echo $observation_camera);
+    logger "uploading Observation Video / Photo...";
+    local status=$(curl -s --write-out %{http_code} -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --request POST  --form "observation=$observation_camera;type=application/json" --form "photo=@$mp4_file;type=video/mp4" $STA_URL/\$observation);
+    logger status=$status;
+    if [ "$status" != "201" ]; then
+        logger Error: Could not create Observation Photo:$status;
+        echo "Error: Could not create Observation Photo: $status" >> $dir_name/$1.log;
+        return -1;
+    else
+        logger "...done";
+    fi;
+    local frames=$(ffmpeg -i $mp4_file -map 0:v:0 -c copy -f null -y /dev/null 2>&1 | grep -Eo 'frame= *[0-9]+ *' | grep -Eo '[0-9]+' | tail -1);
+    local frame=$(expr $frames / 2);
+    ffmpeg -i $mp4_file -vf "select=eq(n\,$frame)" -vframes 1 $png_file -y 2> /dev/null;
+    local observation=$(curl -s $STA_URL/Observations?\$filter=parameters/id%20eq%20%27$obs_camera_id%27);
+    local obs_camera_id=$(echo $observation|jq -r '.value[]."@iot.id"'|head -1| tr -d '\n');
+    logger obs_camera_id=$obs_camera_id;
+    local obs_camera_url=$(echo $observation|jq -r '.value[]."@iot.selfLink"'|head -1| tr -d '\n');
+    logger obs_camera_url=$obs_camera_url;
+    local obs_media_url=$(echo $observation|jq -r '.value[]."result"'|head -1| tr -d '\n');
+    logger obs_media_url=$obs_media_url;
+    local responses=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --form "file=@$png_file;type=image/png" --form "url=\"$obs_media_url\"" https://cos4cloud.demo.secure-dimensions.de/species-prediction/index.php);
+
+
+    local relations="";
+    local obs_ids="";
+    local obs=$(echo $responses|jq '.responses|to_entries[]|select(.value.id=="obs\(.key)")|.value.location')
+    for i in $obs; do
+        obs_id=$(echo $i| grep -oP '(?<=\().*(?=\))');
+        local relation=$(cat -s << EOF
+        ,{
+            "id": "myRelation$obs_id",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Relations",
+            "body": {
+                "Groups": [
+                    {"@iot.id": "\$myGroup"}
+                ],
+                "Subject": {"@iot.id": "$obs_camera_id"},
+                "Object": {"@iot.id": "$obs_id"},
+                "description": "species prediction",
+                "role": "urn:my:species-prediction"
+            }
+        }
+EOF
+);       
+        obs_ids=$(echo -n $obs_ids{\"@iot.id\": \"$obs_id\"},);
+        relations=$relations$relation;
+    done;
+
+    local request=$(cat -s << EOF
+{
+    "requests": [
+        {
+            "id": "obsEnv",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Observations",
+            "body": {
+                "phenomenonTime": "$datetime",
+                "resultTime": "$now",
+                "result": [$temperature,$relative_humidity,$pressure,$luminance],
+                "MultiDatastream": {"@iot.id": "$MDS_ENV_ID"}
+            }
+        },
+        {
+            "id": "myGroup",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Groups",
+            "body": {
+                "name": "Camera Trap Event",
+                "description": "Camera Trap Event at $datetime",
+                "creationTime": "$now",
+                "runTime": "$datetime/$now",
+                "License": {"@iot.id": "CC_BY"},
+                "Party": {"@iot.id": "$AUTH_ID"},
+                "Observations": [
+                    {"@iot.id": "$obs_camera_id"},
+                    $obs_ids
+                    {"@iot.id": "\$obsEnv"}
+                ]
+            }
+        }
+        $relations
+    ]
+}
+EOF
+); 
+
+    logger request=$request;
+    logger "uploading Group...";
+    local response=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 30 -H "Content-Type: application/json" -X POST --data "$request" $STA_URL/\$batch);
+    logger response=$response;
+    local group_url=$(echo $response|jq '.responses[]|select(.id=="myGroup" and .status==201)|.location');
+    if [ -z "$group_url" ]; then
+        logger Error: Could not create Group: "$(echo $response|jq '.responses[]|select(.id=="myGroup").body.message')";
+        echo "Error: Could not create Group:" "$(echo $response|jq '.responses[]|select(.id=="myGroup").body.message')" >> $dir_name/$1.log;
+        return -1;
+    else
+        logger Group upload finished: $group_url;
+        echo "Group upload finished: $group_url" >> $dir_name/$1.log;
+        return 0;
+    fi
+}
+
+
+function loop()
+{
+while true; do
+    for f in *.vtt;
+    do
+        now=$(date +%s); 
+        if [ $EXPIRES -le $(($now + $DELAY)) ]; then
+            logger "Refreshing Access Token..."; 
+            token=$(curl --silent -X POST -H "Content-Type:application/x-www-form-urlencoded" -d "client_id=$client_id" -d "grant_type=refresh_token" -d "response_type=token refresh_token" -d "refresh_token=$REFRESH_TOKEN" -d "redirect_uri=$redirect_uri" -d "scope=openid saml profile offline_access de.secure-dimensions.demo.cos4cloud:staplus" 'https://www.authenix.eu/oauth/token'); 
+            logger token="$(echo $token)"; 
+            if [ "$(echo $token | jq -r '.error')" != "null" ]; then
+                echo "ERROR: $(echo $token | jq '.error_description')"; 
+                exit;
+            fi; 
+            ACCESS_TOKEN=$(echo $token | jq -r '.access_token'); 
+            REFRESH_TOKEN=$(echo $token | jq -r '.refresh_token'); 
+            expires_in=$(echo $token | jq '.expires_in'); 
+            now=$(date +%s); 
+            EXPIRES=$(($now + $expires_in)); 
+            logger access_token: $ACCESS_TOKEN; 
+            logger refresh_token: $REFRESH_TOKEN; 
+            logger expires_in: $expires_in; 
+            logger expires: $expires;
+        fi; 
+        
+        if [ -f $f ]; then
+            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACEES_TOKEN for sta_url: $STA_URL"; 
+                feeder $fname; if [ $? -ne 0 ]; then
+                logger "Error: marking file $fname"; mv $fname.vtt $fname.vtt.error;
+            else
+                mv $fname.vtt $fname.vtt.ok;
+            fi;
+        else
+            logger "no files to process - waiting $DELAY seconds...";
+        fi; 
+        sleep 1;
+    done; 
+    sleep $DELAY;
+done
+
+}
+
+if [ -x "$(command -v banner)" ]; then
+    banner "LICENSE";
+else
+    echo "LICENSE";
+fi
+
+echo "$LICENSE"
+echo ""
+
+if test "$#" -ne 1; then
+    echo "USAGE: $0 <sta_url>"; exit -1;
+else
+    STA_URL=$1;
+fi
+
+if [ -x "$(command -v banner)" ]; then
+    banner "DISCLAIMER";
+else
+    echo "DISCLAIMER";
+fi
+
+echo "$DISCLAIMER"
+echo ""
+agree=n
+while true; do
+    read -p "Do you agree to the disclaimer? Please type 'y' to agree. [n]: " agree; 
+    if [ -z $agree ]; then
+        agree="n";
+    fi; 
+    if [ $agree == 'y' ] || [ $agree == 'n' ]; then
+        break;
+    fi;
+done
+
+if test $agree != "y"; then
+    echo "Sorry, but we need your agreement"; exit -1;
+fi
+
+NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+init_auth
+
+echo ""
+if [ -x "$(command -v banner)" ]; then
+    banner "Hello"; for word in $NAME;
+    do
+        banner $word;
+    done;
+else
+    echo "Hello" "$NAME";
+fi
+
+setup
+
+DELAY=30;
+echo "Start processing data. Checking for new files every $DELAY seconds..."
+loop & > /dev/null 2>&1;
+pid=$!
+echo "App continous with pid $pid"
+echo -n "To stop the processing, type: "
+echo -e '\033[1mkill '$pid'\033[0m'
