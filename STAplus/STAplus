@@ -844,14 +844,14 @@ feeder ()
     "resultTime": "$now",
     "parameters": {"id": "$obs_camera_id", "filename": "$mp4_file"},
     "Datastream": {
-      "@iot.id": $DS_VISUAL_ID
+      "@iot.id": "$DS_VISUAL_ID"
     }
 }
 EOF
 );
     logger observation_camera=$(echo $observation_camera);
     logger "uploading Observation Video / Photo...";
-    local status=$(curl -s --write-out %{http_code} -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --request POST  --form "observation=$observation_camera;type=application/json" --form "photo=@$mp4_file;type=video/mp4" $STA_URL/\$observation);
+    local status=$(curl -s --write-out "\n%{http_code}" -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --request POST  --form "observation=$observation_camera;type=application/json" --form "photo=@$mp4_file;type=video/mp4" $STA_URL/\$observation | tail -1);
     logger status=$status;
     if [ "$status" != "201" ]; then
         logger Error: Could not create Observation Photo:$status;
@@ -983,7 +983,7 @@ while true; do
         fi; 
         
         if [ -f $f ]; then
-            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACEES_TOKEN for sta_url: $STA_URL"; 
+            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACCEES_TOKEN for sta_url: $STA_URL"; 
                 feeder $fname; if [ $? -ne 0 ]; then
                 logger "Error: marking file $fname"; mv $fname.vtt $fname.vtt.error;
             else
