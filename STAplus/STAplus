@@ -317,14 +317,14 @@ EOF
                 answer="n";
                 break;
             fi;
-            if [ $answer == "y" ] || [ $answer == "n" ] || [ $answer == "e" ]; then
+            if [ $answer == "y" ] || [ $answer == "n" ] || [ $answer == "e" ] || [ $answer == "r" ]; then
                 break;
             fi;
         done;
-        if test $answer == "y"; then
+        if [ $answer == "y" ]; then
             break;
         else
-            if test $answer == "e"; then
+            if [ $answer == "e" ]; then
                 read -p "Please provide the LATITUDE: " lat;
                 read -p "Please provide the LONGITUTE: " lon;
                 break;
@@ -983,7 +983,7 @@ while true; do
         fi; 
         
         if [ -f $f ]; then
-            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACCEES_TOKEN for sta_url: $STA_URL"; 
+            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACCESS_TOKEN for sta_url: $STA_URL"; 
                 feeder $fname; if [ $? -ne 0 ]; then
                 logger "Error: marking file $fname"; mv $fname.vtt $fname.vtt.error;
             else
@@ -1050,6 +1050,38 @@ if [ -x "$(command -v banner)" ]; then
 else
     echo "Hello" "$NAME";
 fi
+
+echo "We need your agreement to use your personal data for creating your digital identity!";
+echo "Name: " $NAME;
+echo "Display Name: " $NICK_NAME;
+ 
+answer="n";
+while true; do
+    read -p "Please type 'y' if you agree that this information will used to create your digital identity and become publicly available. If you like to edit the information, please press 'e'. Typing 'n' will end the application. [$answer] " answer;
+    if [ -z $answer ]; then
+        answer="n";
+        exit;
+    fi;
+    if [ $answer == "y" ]; then
+        break;
+    fi;
+    if [ $answer == "e" ]; then
+        agree="n";
+        while true; do
+            read -p "Please provide the name: " NAME;
+            read -p "Please provide the displayName: " NICK_NAME;
+            read -p "If that is OK please type 'y'. To repreat the input type 'n': [n] " agree;
+            if [ $agree == "y" ]; then
+                logger NAME="$NAME";
+                logger NICK_NAME="$NICK_NAME";
+                break;
+            fi;
+        done;
+	fi;
+	if [ $agree == 'y' ]; then
+	   break;
+	fi;
+done;
 
 setup
 
