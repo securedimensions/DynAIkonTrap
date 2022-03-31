@@ -813,7 +813,7 @@ feeder ()
     local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ");
     local date=$(echo $vtt_file | cut -d '_' -f 1 | tr -d $dir_name | tr -d "/" );
     local time=$(sed '/^$/d' $vtt_file | cut -d '@' -f 2 -s);
-    local datetime=$date'T'$time;
+    local datetime=$date'T'$time'Z';
     logger datetime="$datetime";
     local data=$(cat $vtt_file | grep ^T | grep -v '?');
     local temperature=$(echo $data | cut -d "-" -f1 | grep -E -o "[0-9,.]+");
