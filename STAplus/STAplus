@@ -424,7 +424,7 @@ init_project ()
         "termsOfUse": "$terms_of_use",
         "privacyPolicy": "$privacy_policy",
 	    "creationTime": "$NOW",
-        "runTime": ["$NOW", null],
+        "runTime": "$NOW/$NOW",
         "classification": "public"
 }
 EOF
