@@ -55,6 +55,10 @@ To execute the *STAplus* application, you may need to have some additional softw
 corrections of these instructions*
 
 Follow these steps:
+1. Install software packages via apt
+     ```sh
+     sudo apt install git xdg-utils uuid-runtime jq python-serial
+     ```
 1. Configure a default Web Browser (`sudo update-alternatives --config x-www-browser`)
     - Once you have set the default Web Browser, please verify:
         ```sh
@@ -121,7 +125,18 @@ After you login completed successfully, you will see the following window:
 
 You see that the *STAplus* prints your name as greeting.
 
-### 5. GPS Location
+### 5. Personal Information
+This application collects from you login the following information to create your digital identity:
+
+1. Your name: This value represents your real name
+1. Your displayName: This value is typically used by applications for greetings
+
+**Before** this information is uploaded to the server, you have the option to modify the information. Once you have approved the `name` and `displayName` 
+the information will be uploaded and thereby becomes available to any Internet user that obtains your contributed observations.
+
+At any time, you can update the stored information of your digital identity stored at the server. Please contact us for help via support@secure-dimensions.de.
+
+### 6. GPS Location
 After a successful login, the *STAplus* application uses the attached sensor board to determine the GPS location of the Camera Trap.
 
 ```
@@ -148,7 +163,7 @@ You can set the location manually if automatic position determination is not pos
 * 'e': You input the position via keyboard
 * 'n': You want the app to repeat the GPS positioning again
 
-### 6. Address and Geographic Area
+### 7. Address and Geographic Area
 Once you accepted the determined GPS locaation or you provided it manually, the *STAplus* application determines the address via OSM 
 so that you can verify the GPS location.
 
@@ -177,7 +192,7 @@ If you like to use area represented by the polygon above, please type 'p'.
 If you like to use the exact GPS location, please use 'l' [p]:
 ```
 
-### 7. Project Setup
+### 8. Project Setup
 All observations that are created by your Camera Trap will be associated to a Project. It is your Citizen Science project, so please provide a name and description.
 
 `Please provide information how you like to describe your activity` 
@@ -194,7 +209,7 @@ Please provide the description for your project [The automatic detection of spec
 
 e.g.: `The automatic detection of species by my Camera Trap`
 
-### 8. Select a License
+### 9. Select a License
 The Camera Trap produces different pieces of information, stored as observations. 
 You have the choice to mark your observations based on [Create Commons](https://creativecommons.org) licenses.
 This is important as it tells others under which conditions they can re-use your observations.
@@ -229,7 +244,7 @@ e.g.: `1` would only require to attribute you when reusing the environment measu
 
 After this input, the *STAplus* app creates the configuration file and starts processing files created by the DynAIKon Camera Trap...
 
-### 9. Start Processing
+### 10. Start Processing
 The *STAplus* app scans the current directory for `*.vtt` files. If the app finds such a file, it processes the content and uses the `*.mp4`.
 To continue processing, the *STAplus* app detaches and continous as a background application.
 
@@ -248,7 +263,7 @@ Once a `*.vtt` file is processed, the *STAplus* application renames the file to:
 
 You can determine more details about this from the `*.log` file.
 
-### 10. Logging
+### 11. Logging
 The *STAplus* app prints quite some (debugging) information to the system log. You can see the information by typing 
 
 ```
