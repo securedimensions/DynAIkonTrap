@@ -381,7 +381,7 @@ init_location ()
   "encodingType": "application/geo+json",
   "location": {
     "type": "Point",
-    "coordinates": [$lat, $lon]
+    "coordinates": [$lon, $lat]
   }
 }
 EOF
@@ -1057,7 +1057,7 @@ echo "Display Name: " $NICK_NAME;
  
 answer="n";
 while true; do
-    read -p "Please type 'y' if you agree that this information will used to create your digital identity and become publicly available. If you like to edit the information, please press 'e'. Typing 'n' will end the application. [$answer] " answer;
+    read -p "Please type 'y' if you agree that this information can be used to create your digital identity and become publicly available. If you like to edit the information, please press 'e'. Typing 'n' will end the application. [$answer] " answer;
     if [ -z $answer ]; then
         answer="n";
         exit;
