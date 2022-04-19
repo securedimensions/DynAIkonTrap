@@ -176,6 +176,8 @@ setup ()
             logger "Using existing configuration";
             logger config=$config;
             AUTH_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.auth_id');
+            PARTY_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.party_id');
+            logger PARTY_ID=$PARTY_ID;
             PROJECT_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.project_id');
             logger PROJECT_ID=$PROJECT_ID;
             THING_PI_ID=$(echo -n $config | jq -r --arg AUTHID "$AUTH_ID" '.|select(.auth_id==$AUTHID)|.thing_ids[0]');
@@ -204,6 +206,7 @@ setup ()
     local sta_ids=$(cat -s << EOF
 {
     "auth_id": "$AUTH_ID",
+    "party_id": "$PARTY_ID",
     "project_id": "$PROJECT_ID",
     "thing_ids": [
         "$THING_PI_ID",
@@ -926,7 +929,7 @@ EOF
                 "creationTime": "$now",
                 "runTime": "$datetime/$now",
                 "License": {"@iot.id": "CC_BY"},
-                "Party": {"@iot.id": "$AUTH_ID"},
+                "Party": {"@iot.id": "$PARTY_ID"},
                 "Observations": [
                     {"@iot.id": "$obs_camera_id"},
                     $obs_ids
