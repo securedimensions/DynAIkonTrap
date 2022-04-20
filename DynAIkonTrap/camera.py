@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provides a simplified interface to the `PiCamera` library class. The `Camera` class gives provides the `Frame`s from the camera's stream via a queue. Initialising the `Camera` takes care of setting up the necessary motion vector and image streams under the hood.
+Provides a simplified interface to the :class:`PiCamera` library class. The :class:`Camera` class provides the :class:`Frame`\ s from the camera's stream via a queue. Initialising the :class:`Camera` takes care of setting up the necessary motion vector and image streams under the hood.
 
-A `Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
+A :class:`Frame` is defined for this system as having the motion vectors, as used in H.264 encoding, a JPEG encode image, and a UNIX-style timestamp when the frame was captured.
 """
 from queue import Empty
 from time import sleep, time
@@ -29,7 +29,7 @@ from typing import Tuple
 try:
     from picamera import PiCamera
     from picamera.array import PiMotionAnalysis
-except OSError:
+except (OSError, ModuleNotFoundError):
     # Ignore error that occurs when running pdoc3
     class PiMotionAnalysis:
         pass
@@ -80,7 +80,7 @@ class ImageReader:
         self._sync = synchroniser
 
     def write(self, buf):
-        if buf.startswith(b'\xff\xd8'):
+        if buf.startswith(b"\xff\xd8"):
             self._sync.tick_image_frame(buf)
 
 
@@ -88,7 +88,7 @@ class Camera:
     """Acts as a wrapper class to provide a simple interface to a stream of camera frames. Each frame consists of motion vectors and a JPEG image. The frames are stored on an internal queue, ready to be read by any subsequent stage in the system."""
 
     def __init__(self, settings: CameraSettings):
-        """Takes a `CameraSettings` object to initialise and start the camera hardware."""
+        """Takes a :class:`~DynAIkonTrap.settings.CameraSettings` object to initialise and start the camera hardware."""
 
         self.resolution = settings.resolution
         self.framerate = settings.framerate
@@ -98,14 +98,17 @@ class Camera:
         self._output: QueueType[Frame] = Queue()
         synchroniser = Synchroniser(self._output)
         self._camera.start_recording(
-            '/dev/null',
-            format='h264',
+            "/dev/null",
+            format="h264",
             motion_output=MovementAnalyser(self._camera, synchroniser),
         )
         self._camera.start_recording(
-            ImageReader(synchroniser), format='mjpeg', splitter_port=2
+            ImageReader(synchroniser),
+            format="mjpeg",
+            splitter_port=2,
+            bitrate=settings.bitrate_bps,
         )
-        logger.debug('Camera started')
+        logger.debug("Camera started")
 
     def get(self) -> Frame:
         """Retrieve the next frame from the camera
@@ -120,7 +123,7 @@ class Camera:
             return self._output.get(1 / self.framerate)
 
         except Empty:
-            logger.error('No frames available from Camera')
+            logger.error("No frames available from Camera")
             self._no_frames = True
             raise Empty
 
@@ -128,7 +131,7 @@ class Camera:
         """Indicates if the queue of buffered frames is empty
 
         Returns:
-            bool: `True` if there are no more frames, otherwise `False`
+            bool: ``True`` if there are no more frames, otherwise ``False``
         """
         return self._output.empty()
 

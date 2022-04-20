@@ -7,51 +7,21 @@ DynAIkonTrap makes use of a continuous stream from a camera attached to the Rasp
 We would appreciate it if you could spare 30 seconds to complete [this form](https://cloud.dynaikon.com/apps/forms/wA7EbqAPsFjTmanL) in return for free usage of our software. This will help us understand who is interested in the project and how we can improve it.
 
 ## Useful Resources
-**We recommend checking out the [Software Setup](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup) guide for the easiest installation experience**
+**We recommend checking out the [User Guide](https://dynaikon.com/trap-docs/user-docs.html) guide for the easiest installation experience**
 
 - [Getting Started](#getting-started)
     - A quick-start guide that you can use to check everything works
 - [Tuning the System](#tuning-the-system)
 - [Evaluation](#evaluation)
-- [Wiki](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/)
-- [FAQ](#faq)
-- [Source code documentation](docs/html)
-    - You will need to view these files via your browser after downloading
-    - GitLab does not actually render the HTML pages
+- [User Documentation](https://dynaikon.com/trap-docs/user-docs.html)
+- [Developer documentation](https://dynaikon.com/trap-docs/dev-docs.html)
 
 ## Getting Started
-> **Check [here](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup/Manual-Installation#installation-on-other-platforms-not-raspberry-pi) if you are not installing on a Raspberry Pi. Note: the full software will only run on a Raspberry Pi.**
+> **Check [here](https://dynaikon.com/trap-docs/user-docs/software-setup/manual-installation.html#installation-on-other-platforms-not-raspberry-pi) if you are not installing on a Raspberry Pi.**
 
-Follow these steps to get up and running quickly with default settings.
-1. Connect the camera to your Raspberry Pi and enable it in settings (`sudo raspi-config`)
-    - If you are on a newly setup Raspberry Pi it's worth updating before proceeding:
-        ```sh
-        sudo apt update && sudo apt upgrade -y
-        ```
-    - You may also need to install git:
-        ```sh
-        sudo apt install git -y
-        ```
-1. Download the code e.g.
-    ```sh
-    # Download
-    git clone http://gitlab.dynaikon.com/dynaikontrap/dynaikontrap.git
-    # Enter the directory
-    cd dynaikontrap
-    ```
-1. Run the setup script
-    ```sh
-    # Installs all required libraries into a Python virtual environment.
-    ./setup.sh
-    ```
-1. Start the camera trap program by running:
-    ```sh
-    dynaikontrap
-    ```
+Follow the [Quick Start](https://dynaikon.com/trap-docs/user-docs/quick-start.html) to get up and running quickly with default settings.
 
-Be sure to check out the wiki for more information on deploying the system, including advice on power supplies and case designs.
-
-If you are installing on a non-Raspberry Pi platform check [this wiki page](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup/Manual-Installation#installation-on-other-platforms-not-raspberry-pi) for additional guidance.
+Be sure to check out the [User Guide](https://dynaikon.com/trap-docs/user-docs.html) for full instructions.
 
 ## Tuning the System
 The system has many parameters that can be tuned to be optimal for any given deployment.
@@ -65,7 +35,7 @@ source ./venv/bin/activate
 python tuner.py
 ```
 
-See [this wiki page](https://gitlab.dynaikon.com/dynaikontrap/dynaikontrap/-/wikis/Software-Setup#tuning) for guidance on what each option/seting is for.
+See the [Tuning Guide](https://dynaikon.com/trap-docs/user-docs/software-setup/tuning.html) for guidance on what each option/seting is for.
 
 ## Evaluation
 The software is accompanied by some evaluation tools to make it easier for you to see how tweaking the settings can affect system performance. You can follow the recommended approach for generating test data sequences with your Raspberry Pi, or convert existing videos to test data if you are feeling adventurous.
@@ -84,7 +54,7 @@ This records video data and generates an output file, `data.pk`. You can then co
 <summary>How to use an existing video, instead of recording my own? (click to expand)</summary>
 
 
-If you wish to use existing videos, rather than recording your own, you can do this using tools like [MV-Tractus](https://github.com/jishnujayakumar/MV-Tractus). This whole process can be a little awkward, so this has not been described here in detail. If you do create your own you need to provide the data and truth as follows:
+If you wish to use existing videos, rather than recording your own, you can do this using tools like our [vid2frames](https://gitlab.dynaikon.com/dynaikontrap/vid2frames) library. This has not been described here in detail. If you do create your own you need to provide the data and truth as follows:
 
 - Recorded data
 ```python
@@ -143,42 +113,8 @@ A precision score is also given to indicate what percentage of the frames declar
 For all of these results higher is better, with 100% being the maximum. A perfect system would have a result of 100% for alpha set in the exclusive interval (0...1).
 
 ## Further Information
-If you are interested in more detailed information, have a look at the project's wiki page.
-
-## Room for Improvement
-As with any project there is always room for improvement. Below a few areas of particular interest for further development of the project have been identified:
-- Motion queue prioritisation approach
-    - At the moment this is done based on the largest SoTV, but there are probably better approaches
-- Facilitating external triggers
-    - The motivation of this project was to remove the reliance on external triggers for camera traps, but it may be desirable to add a "external trigger" filtering stage to the pipeline.
-- Throttle the output
-    - If bandwidth/storage is limited and costly throttling how many images are recorded per second may be useful. This should not come at a cost to precision. Previous prototypes have been tested with such a stage and worked.
-
-## FAQ
-<details>
-<summary>Do I need to run <code>source ./venv/bin/activate</code> every time I restart the Pi?</summary>
-
-That command enables the virtual environment we installed the project into. You only need to run it once after the Raspberry Pi boots up i.e. once per restart. If you don't like typing the whole command consider adding an alias to your .bashrc file. In fact you may want to add an alias for activating the virtual environment and starting the camera trap code.
-
-If you don't know what that means, don't worry just do the following:
-1. Open the file at the path `~/.bashrc` in any text editor e.g.
-    ```sh
-    nano ~/.bashrc
-    ```
-1. Add the following line to the file:
-    ```sh
-    alias start="cd ~/dynaikontrap && source ./venv/bin/activate && python -m DynAIkonTrap"
-    ```
-    
-    With this you're telling the computer "when I type `start`, enter the project directory, activate the virtual environment, and run the camera trap code".
-
-1. Quit using `<ctrl>`+`x`. Confirm saving changes with `y` then `<enter>`.
-
-    If you want the command to work immediately run `source ~/.bashrc` to apply the changes you just made. This also happens when you log out and back in.
-1. From now on type `start` to run the code.
-
-</details>
+If you are interested in more detailed information, have a look at the project's [online documentation](https://dynaikon.com/trap-docs/).
 
 ---
 
-![This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 863463](docs/images/c4c_eu_funding.png)
+![This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 863463](docs/source/_static/c4c_eu_funding.png)

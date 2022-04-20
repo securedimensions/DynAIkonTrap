@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-This module provides a general interface to a motion filtering stage. The motion filter determines if a frame contains sufficient motion to be of interest for passing on to the `DynAIkonTrap.filtering.animal.AnimalFilter` stage. This stage in the pipeline is what allows the system to operate at video framerates as it allows the removal of empty frames that do not need to be analysed by an animal detector. Any method employed in the `MotionFilter` must therefore be able to operate fast enough that it does not form a bottleneck in the system.
+This module provides a general interface to a motion filtering stage. The motion filter determines if a frame contains sufficient motion to be of interest for passing on to the :class:`~DynAIkonTrap.filtering.animal.AnimalFilter` stage. This stage in the pipeline is what allows the system to operate at video framerates as it allows the removal of empty frames that do not need to be analysed by an animal detector. Any method employed in the :class:`MotionFilter` must therefore be able to operate fast enough that it does not form a bottleneck in the system.
 
-The implementation can be replaced with another one easily as the interface simply takes the motion vectors from a frame, performs a calculation, and returns a value corresponding to the motion. If using the `MotionFilter.run()` method (over `MotionFilter.run_raw()`), the threshold is defined internally and a simple Boolean is provided as an output.
+The implementation can be replaced with another one easily as the interface simply takes the motion vectors from a frame, performs a calculation, and returns a value corresponding to the motion. If using the :func:`MotionFilter.run` method (over :func:`MotionFilter.run_raw`), the threshold is defined internally and a simple Boolean is provided as an output.
 
 This implementation makes use of the Sum of Thresholded Vectors (SoTV) approach. Under this approach initially a small threshold is applied to all motion vectors. This removes the smallest vectors that are more likely to be due to noise or unimportant movements. Secondly, the vectors are summed together giving a single average motion vector for the frame. This step implicitely checks for coherence in movement vectors, as well as the magnitude and size of the area of motion. Finally, the vector is smoothed in time using a Chebyshev type-2 filter to reduce frame-to-frame oscillations in movement and give an insight to the trend in motion. The magnitude of the single smoothed vector representing motion in the frame can then be thresholded to determine if sufficient movement is declared, or not.
 """
@@ -56,18 +56,18 @@ class MotionFilter:
         wn = wn(settings.iir_cutoff_hz)
         # Ensure wn is capped to the necessary bounds
         if wn <= 0:
-            logger.error('IIR cutoff frequency too low (wn = {:.2f})'.format(wn))
+            logger.error("IIR cutoff frequency too low (wn = {:.2f})".format(wn))
             wn = 1e-10
         elif wn >= 1:
-            logger.error('IIR cutoff frequency too high (wn = {:.2f})'.format(wn))
+            logger.error("IIR cutoff frequency too high (wn = {:.2f})".format(wn))
             wn = 1 - 1e-10
 
         sos = signal.cheby2(
             settings.iir_order,
             settings.iir_attenuation,
             wn,
-            output='sos',
-            btype='lowpass',
+            output="sos",
+            btype="lowpass",
         )
         self.x_iir_filter = IIRFilter(sos)
         self.y_iir_filter = IIRFilter(sos)
@@ -85,8 +85,8 @@ class MotionFilter:
             float: SoTV for the given frame
         """
         magnitudes = np.sqrt(
-            np.square(motion_frame['x'].astype(np.float))
-            + np.square(motion_frame['y'].astype(np.float))
+            np.square(motion_frame["x"].astype(np.float))
+            + np.square(motion_frame["y"].astype(np.float))
         )
         filtered = np.where(
             magnitudes > self.threshold_small,
@@ -94,15 +94,15 @@ class MotionFilter:
             np.array(
                 (0, 0, 0),
                 dtype=[
-                    ('x', 'i1'),
-                    ('y', 'i1'),
-                    ('sad', 'u2'),
+                    ("x", "i1"),
+                    ("y", "i1"),
+                    ("sad", "u2"),
                 ],
             ),
         )
 
-        x_sum = sum(sum(filtered['x'].astype(int)))
-        y_sum = sum(sum(filtered['y'].astype(int)))
+        x_sum = sum(sum(filtered["x"].astype(int)))
+        y_sum = sum(sum(filtered["y"].astype(int)))
 
         x_sum = self.x_iir_filter.filter(x_sum)
         y_sum = self.y_iir_filter.filter(y_sum)
@@ -110,18 +110,17 @@ class MotionFilter:
         return math.sqrt(x_sum ** 2 + y_sum ** 2)
 
     def run(self, motion_frame: np.ndarray) -> bool:
-        """Apply a threshold to the output of `run_raw()`
+        """Apply a threshold to the output of :func:`run_raw()`
 
         Args:
             motion_frame (np.ndarray): Motion vectors for a frame
 
         Returns:
-            bool: `True` if the SoTV is at least the threshold, otherwise `False`
+            bool: ``True`` if the SoTV is at least the threshold, otherwise ``False``
         """
         return self.run_raw(motion_frame) >= self.threshold_sotv
 
     def reset(self):
-        """Reset the internal IIR filter's memory to zero
-        """
+        """Reset the internal IIR filter's memory to zero"""
         self.x_iir_filter.reset()
         self.y_iir_filter.reset()
