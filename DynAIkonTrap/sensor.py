@@ -73,7 +73,7 @@ class Sensor:
             SerialException: If the sensor board could not be found
         """
         try:
-            self._ser = Serial(port, baud, timeout=0)
+            self._ser = Serial(port, baud, timeout=0.1)
         except SerialException:
             logger.warning("Sensor board not found on {}, baud {}".format(port, baud))
             self._ser = None
