@@ -42,7 +42,7 @@ if [ $python_command == 0 ]; then
 fi
 
 ## Install dependencies
-sudo -p "[sudo] password to install dependencies> " apt install -y ffmpeg libaom0 libavcodec58 libavformat58 libavutil56 libcodec2-0.8.1 libilmbase23 libopenexr23 libswresample3 libswscale5 libx264-155 libx265-165
+sudo -p "[sudo] password to install dependencies> " apt install -y ffmpeg libaom0 libavcodec58 libavformat58 libavutil56 libcodec2-0.9 libilmbase25 libopenexr25 libswresample3 libswscale5 libx264-160 libx265-192
 
 if [ $? -ne 0 ]; then
     echo "There was an error installing dependencies (see above)"
@@ -64,7 +64,7 @@ if [ $? -ne 0 ]; then
     esac
 fi
 
-sudo -p "[sudo] password to install dependencies> " apt install -y libatlas3-base libbluray2 libcairo2 libchromaprint1 libcroco3 libdatrie1 libdrm2 libfontconfig1 libgdk-pixbuf2.0-0 libgfortran5 libgme0 libgraphite2-3 libgsm1 libharfbuzz0b libjbig0 libmp3lame0 libmpg123-0 libogg0 libopenjp2-7 libopenmpt0 libopus0 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 libpixman-1-0 librsvg2-2 libshine3 libsnappy1v5 libsoxr0 libspeex1 libssh-gcrypt-4 libthai0 libtheora0 libtiff5 libtwolame0 libva-drm2 libva-x11-2 libva2 libvdpau1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx5 libwavpack1 libwebp6 libwebpmux3 libxcb-render0 libxcb-shm0 libxfixes3 libxrender1 libxvidcore4 libzvbi0
+sudo -p "[sudo] password to install dependencies> " apt install -y libatlas3-base libbluray2 libcairo2 libchromaprint1 libcroco3 libdatrie1 libdrm2 libfontconfig1 libgdk-pixbuf2.0-0 libgfortran5 libgme0 libgraphite2-3 libgsm1 libharfbuzz0b libjbig0 libmp3lame0 libmpg123-0 libogg0 libopenjp2-7 libopenmpt0 libopus0 libpango-1.0-0 libpangocairo-1.0-0 libpangoft2-1.0-0 libpixman-1-0 librsvg2-2 libshine3 libsnappy1v5 libsoxr0 libspeex1 libssh-gcrypt-4 libthai0 libtheora0 libtiff5 libtwolame0 libva-drm2 libva-x11-2 libva2 libvdpau1 libvorbis0a libvorbisenc2 libvorbisfile3 libvpx6 libwavpack1 libwebp6 libwebpmux3 libxcb-render0 libxcb-shm0 libxfixes3 libxrender1 libxvidcore4 libzvbi0
 
 if [ $? -ne 0 ]; then
     echo "There was an error installing dependencies (see above)"
