@@ -728,7 +728,7 @@ init_auth ()
         echo "ERROR: You must set a default Web Browser first!";
         exit;
     fi;
-    local client_id="bd7b85f7-1450-3958-ab2c-4e69ca6fb387";
+    local client_id="bda611f0-5ab1-3649-97ab-1569ecc59579";
     local redirect_uri="http://127.0.0.1:4711/camera-trap-app";
     local state_in=$(uuidgen);
     local nonce=$(uuidgen);
