@@ -744,7 +744,7 @@ init_auth ()
         rm -f .nc;
     fi;
     while [ ! -f ".nc" ]; do
-        local line=$({ echo -e 'HTTP/1.1 200 OK\r\n\r\nLogin successful. Please return to the STAplus App...'; } | nc -N -l -q1 4711);
+        local line=$({ echo -e 'HTTP/1.1 200 OK\r\n\r\nLogin successful. Please return to the STAplus App...'; } | nc -N -l 4711);
         logger line="$line";
         if [ ! -z "$line" ]; then
             local path=$(echo -n $line | cut -d " " -f2|cut -d "?" -f1);
