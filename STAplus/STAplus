@@ -935,7 +935,7 @@ EOF
     local lat=$(echo $data|jq -r '.GPS_POSITION_LATITUDE_QUANTISED.value');
     logger lon=$lon;
     logger lat=$lat;
-    if [ ! -n "$lat" -a ! -n "$lon" ]; then
+    if [ "$lat" != "null" -a "$lon" != "null" ]; then
         logger "preparing FoI with lon/lat"
         local name=$(echo "Location " "$lon" "/" "$lat");
         local foi=$(cat -s << EOF
