@@ -87,7 +87,7 @@ init_licenses ()
                 "name": "CC BY-ND 3.0",
                 "definition": "https://creativecommons.org/licenses/by-nd/3.0/deed.en",
                 "description": "The Creative Commons Attribution & NoDerivs license",
-                "logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nd.png"
+                logo": "https://mirrors.creativecommons.org/presskit/buttons/88x31/png/by-nd.png"
             }
         },
         {
@@ -806,35 +806,55 @@ init_auth ()
 
 feeder () 
 { 
-    vtt_file="$1".vtt;
+    json_file="$1".json;
     mp4_file="$1".mp4;
     png_file="$1".png;
-    dir_name=$(dirname $vtt_file);
+    dir_name=$(dirname $json_file);
     if [ -f "$1".log ]; then
         rm -f "$1".log;
     fi;
     local now=$(date -u +"%Y-%m-%dT%H:%M:%SZ");
-    local date=$(echo $vtt_file | cut -d '_' -f 1 | tr -d $dir_name | tr -d "/" );
-    local time=$(sed '/^$/d' $vtt_file | cut -d '@' -f 2 -s);
-    local datetime=$date'T'$time'Z';
-    logger datetime="$datetime";
-    local data=$(cat $vtt_file | grep ^T | grep -v '?');
-    local temperature=$(echo $data | cut -d "-" -f1 | grep -E -o "[0-9,.]+");
+    local date=$(echo $json_file | cut -d '_' -f 1 | tr -d $dir_name | tr -d "/");
+    local time=$(echo $json_file | cut -d '_' -f 2 | tr -d $dir_name | tr -d "/");
+    local h=$(echo $time|cut -d"-" -f1);
+    local m=$(echo $time|cut -d"-" -f2);
+    local s=$(echo $time|cut -d"-" -f3);
+    time=$h':'$m':'$s;
+    local resultTime=$date'T'$time'Z';
+    logger resultTime="$resultTime";
+
+    local data=$(cat $json_file|jq '.[].log');
+    local datetime=$(echo $data|jq -r '.GPS_TIME.value'|sed 's/;/:/g');
+    logger datetime=$datetime;
+    if [ -n "$datetime" ]; then
+        local phenomenonTime=$now
+    else
+        local datex=$(echo $datetime|cut -d" " -f2|sed 's/\./ /g');
+        date=$(echo -n $datex|cut -d" " -f3)-$(echo -n $datex|cut -d" " -f2)-$(echo -n $datex|cut -d" " -f1);
+        time=$(echo $datetime|cut -d" " -f3);
+        local offset=$(echo $datetime|cut -d" " -f4|sed 's/E2//');
+        local offseth=$(echo $offset|head -c3);
+        local offsetm=$(echo -n $offset|tail -c2);
+        local phenomenonTime=$date'T'$time$offseth':'$offsetm;
+    fi;
+    logger phenomenonTime="$phenomenonTime";
+
+    local temperature=$(echo $data|jq -r '.PRESSURE_TEMPERATURE.value');
     if [ -z "$temperature" ]; then
         temperature="null";
     fi;
     logger temperature="$temperature";
-    local relative_humidity=$(echo $data | cut -d "-" -f2 | grep -E -o "[0-9,.]+");
+    local relative_humidity=$(echo $data|jq -r '.HUMIDITY.value');
     if [ -z "$relative_humidity" ]; then
         relative_humidity="null";
     fi;
     logger relative_humidity="$relative_humidity";
-    local luminance=$(echo $data | cut -d "-" -f3 | grep -E -o "[0-9,.]+");
+    local luminance=$(echo $data |jq -r '.BRIGHTNESS.value');
     if [ -z "$luminance" ]; then
         luminance="null";
     fi;
     logger luminance="$luminance";
-    local pressure=$(echo $data | cut -d "-" -f4 | grep -E -o "[0-9,.]+");
+    local pressure=$(echo $data |jq -r '.RAW_ATMOSPHERIC_PRESSURE.value');
     if [ -z "$pressure" ]; then
         pressure="null";
     fi;
@@ -843,8 +863,8 @@ feeder ()
     local observation_camera=$(cat -s << EOF
 {
     "result": "",
-    "phenomenonTime": "$datetime",
-    "resultTime": "$now",
+    "phenomenonTime": "$phenomenonTime",
+    "resultTime": "$resultTime",
     "parameters": {"id": "$obs_camera_id", "filename": "$mp4_file"},
     "Datastream": {
       "@iot.id": "$DS_VISUAL_ID"
@@ -852,9 +872,15 @@ feeder ()
 }
 EOF
 );
+
     logger observation_camera=$(echo $observation_camera);
     logger "uploading Observation Video / Photo...";
-    local status=$(curl -s --write-out "\n%{http_code}" -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --request POST  --form "observation=$observation_camera;type=application/json" --form "photo=@$mp4_file;type=video/mp4" $STA_URL/\$observation | tail -1);
+    # reduce mp4 size before upload (640/360)
+    logger "reducing mp4 size for uploading"
+    local upload_file='_'$mp4_file;
+    ffmpeg -i $mp4_file -vf scale=640:360 -nostats -loglevel 0 -y $upload_file
+    logger "upload file: " $upload_file
+    local status=$(curl -s --write-out "\n%{http_code}" -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --request POST  --form "observation=$observation_camera;type=application/json" --form "photo=@$upload_file;type=video/mp4" $STA_URL/\$observation | tail -1);
     logger status=$status;
     if [ "$status" != "201" ]; then
         logger Error: Could not create Observation Photo:$status;
@@ -865,6 +891,7 @@ EOF
     fi;
     local frames=$(ffmpeg -i $mp4_file -map 0:v:0 -c copy -f null -y /dev/null 2>&1 | grep -Eo 'frame= *[0-9]+ *' | grep -Eo '[0-9]+' | tail -1);
     local frame=$(expr $frames / 2);
+    # create the PNG for species detection
     ffmpeg -i $mp4_file -vf "select=eq(n\,$frame)" -vframes 1 $png_file -y 2> /dev/null;
     local observation=$(curl -s $STA_URL/Observations?\$filter=parameters/id%20eq%20%27$obs_camera_id%27);
     local obs_camera_id=$(echo $observation|jq -r '.value[]."@iot.id"'|head -1| tr -d '\n');
@@ -879,6 +906,7 @@ EOF
     local relations="";
     local obs_ids="";
     local obs=$(echo $responses|jq '.responses|to_entries[]|select(.value.id=="obs\(.key)")|.value.location')
+    logger "species prediction: " $obs
     for i in $obs; do
         obs_id=$(echo $i| grep -oP '(?<=\().*(?=\))');
         local relation=$(cat -s << EOF
@@ -903,7 +931,27 @@ EOF
         relations=$relations$relation;
     done;
 
-    local request=$(cat -s << EOF
+    local lon=$(echo $data|jq -r '.GPS_POSITION_LONGITUDE_QUANTISED.value');
+    local lat=$(echo $data|jq -r '.GPS_POSITION_LATITUDE_QUANTISED.value');
+    logger lon=$lon;
+    logger lat=$lat;
+    if [ ! -n "$lat" -a ! -n "$lon" ]; then
+        logger "preparing FoI with lon/lat"
+        local name=$(echo "Location " "$lon" "/" "$lat");
+        local foi=$(cat -s << EOF
+{
+  "name": "$name",
+  "description": "",
+  "encodingType": "application/geo+json",
+  "feature": {
+    "type": "Point",
+    "coordinates": [$lon, $lat]
+  }
+}
+EOF
+);
+
+        local request=$(cat -s << EOF
 {
     "requests": [
         {
@@ -912,10 +960,11 @@ EOF
             "method": "post",
             "url": "Observations",
             "body": {
-                "phenomenonTime": "$datetime",
+                "phenomenonTime": "$phenomenonTime",
                 "resultTime": "$now",
                 "result": [$temperature,$relative_humidity,$pressure,$luminance],
-                "MultiDatastream": {"@iot.id": "$MDS_ENV_ID"}
+                "MultiDatastream": {"@iot.id": "$MDS_ENV_ID"},
+                "FeatureOfInterest": $foi
             }
         },
         {
@@ -925,9 +974,9 @@ EOF
             "url": "Groups",
             "body": {
                 "name": "Camera Trap Event",
-                "description": "Camera Trap Event at $datetime",
+                "description": "Camera Trap Event at $phenomenonTime",
                 "creationTime": "$now",
-                "runTime": "$datetime/$now",
+                "runTime": "$resultTime/$now",
                 "License": {"@iot.id": "CC_BY"},
                 "Party": {"@iot.id": "$PARTY_ID"},
                 "Observations": [
@@ -942,7 +991,49 @@ EOF
 }
 EOF
 ); 
+    else
+        logger "preparing FoI with no lon/lat"
+        local request=$(cat -s << EOF
+{
+    "requests": [
+        {
+            "id": "obsEnv",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Observations",
+            "body": {
+                "phenomenonTime": "$phenomenonTime",
+                "resultTime": "$now",
+                "result": [$temperature,$relative_humidity,$pressure,$luminance],
+                "MultiDatastream": {"@iot.id": "$MDS_ENV_ID"}
+            }
+        },
+        {
+            "id": "myGroup",
+            "atomicityGroup": "group1",
+            "method": "post",
+            "url": "Groups",
+            "body": {
+                "name": "Camera Trap Event",
+                "description": "Camera Trap Event at $phenomenonTime",
+                "creationTime": "$now",
+                "runTime": "$resultTime/$now",
+                "License": {"@iot.id": "CC_BY"},
+                "Party": {"@iot.id": "$PARTY_ID"},
+                "Observations": [
+                    {"@iot.id": "$obs_camera_id"},
+                    $obs_ids
+                    {"@iot.id": "\$obsEnv"}
+                ]
+            }
+        }
+        $relations
+    ]
+}
+EOF
+);
 
+    fi;
     logger request=$request;
     logger "uploading Group...";
     local response=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 30 -H "Content-Type: application/json" -X POST --data "$request" $STA_URL/\$batch);
@@ -963,10 +1054,11 @@ EOF
 function loop()
 {
 while true; do
-    for f in *.vtt;
+    for f in *.json;
     do
-        now=$(date +%s); 
-        if [ $EXPIRES -le $(($now + $DELAY)) ]; then
+        if [[ "$f" =~ ^'202'[2,3] ]]; then 
+          now=$(date +%s); 
+          if [ $EXPIRES -le $(($now + $DELAY)) ]; then
             logger "Refreshing Access Token..."; 
             token=$(curl --silent -X POST -H "Content-Type:application/x-www-form-urlencoded" -d "client_id=$client_id" -d "grant_type=refresh_token" -d "response_type=token refresh_token" -d "refresh_token=$REFRESH_TOKEN" -d "redirect_uri=$redirect_uri" -d "scope=openid saml profile offline_access de.secure-dimensions.demo.cos4cloud:staplus" 'https://www.authenix.eu/oauth/token'); 
             logger token="$(echo $token)"; 
@@ -983,19 +1075,22 @@ while true; do
             logger refresh_token: $REFRESH_TOKEN; 
             logger expires_in: $expires_in; 
             logger expires: $expires;
-        fi; 
+          fi; 
         
-        if [ -f $f ]; then
-            fname=$(basename $f .vtt); logger "processing file: $fname with access_token: $ACCESS_TOKEN for sta_url: $STA_URL"; 
-                feeder $fname; if [ $? -ne 0 ]; then
-                logger "Error: marking file $fname"; mv $fname.vtt $fname.vtt.error;
+          if [ -f $f ]; then
+            fname=$(basename $f .json); 
+            logger "processing file: $fname with access_token: $ACCESS_TOKEN for sta_url: $STA_URL"; 
+            feeder $fname; 
+            if [ $? -ne 0 ]; then
+                logger "Error: marking file $fname"; mv $fname.json $fname.json.error;
             else
-                mv $fname.vtt $fname.vtt.ok;
+                mv $fname.json $fname.json.ok;
             fi;
-        else
+          else
             logger "no files to process - waiting $DELAY seconds...";
-        fi; 
-        sleep 1;
+          fi; 
+          sleep 1;
+      fi;
     done; 
     sleep $DELAY;
 done
