@@ -57,7 +57,7 @@ corrections of these instructions*
 Follow these steps:
 1. Install software packages via apt
      ```sh
-     sudo apt install git xdg-utils uuid-runtime jq python-serial
+     sudo apt install git xdg-utils uuid-runtime jq screen python3-serial
      ```
 1. Configure a default Web Browser (`sudo update-alternatives --config x-www-browser`)
     - Once you have set the default Web Browser, please verify:
