@@ -492,15 +492,15 @@ init_datastream ()
             "unitOfMeasurement": {
                 "name": "n/a",
                 "symbol": "",
-                "definition": "https://www.merriam-webster.com/dictionary/picture"
+                "definition": "n/a"
             },
-            "name": "photo datastream",
-            "description": "this datastream is about pictures",
-            "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+            "name": "video datastream",
+            "description": "This datastream is about videos",
+            "observationType": "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Video",
             "ObservedProperty": {
-                "name": "Picture",
-                "definition": "https://www.merriam-webster.com/dictionary/picture",
-                "description": "The image taken by the camera (the sensor)"
+                "name": "Video",
+                "definition": "https://en.wikipedia.org/wiki/Video_file_format",
+                "description": "A video taken by the camera (the sensor)"
             },
             "Sensor": {
                 "name": "Pi NoIR - Raspberry Pi Infrared Camera Module",
@@ -578,7 +578,7 @@ init_multi_datastream ()
     MDS=$(cat -s << EOF
 {
             "name": "Environmental Datastream from Camera Trap",
-            "description": "Environment data for air temperature, humidity, pressure",
+            "description": "Environment data for air temperature, humidity, pressure and Luminance",
             "multiObservationDataTypes": [
                 "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
                 "http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
@@ -595,22 +595,22 @@ init_multi_datastream ()
             },
             "unitOfMeasurements": [
                 {
-                    "name": "Temperature",
+                    "name": "Degrees Celsius",
                     "symbol": "C",
                     "definition": "http://www.qudt.org/qudt/owl/1.0.0/qudt/index.html#TemperatureUnit"
                 },
                 {
-                    "name": "Humidity",
-                    "symbol": "RH",
-                    "definition": "https://byjus.com/physics/unit-of-humidity/"
+                    "name": "Relative Humidity",
+                    "symbol": "RH (%)",
+                    "definition": "https://en.wikipedia.org/wiki/Humidity#Relative_humidity"
                 },
                 {
-                    "name": "Pressure",
+                    "name": "Millibars",
                     "symbol": "mbar",
                     "definition": "https://en.wikipedia.org/wiki/Atmospheric_pressure"
                 },
                 {
-                    "name": "Luminance",
+                    "name": "Candela per square metre",
                     "symbol": "cd/m2",
                     "definition": "https://en.wikipedia.org/wiki/Luminance"
                 }
@@ -619,26 +619,26 @@ init_multi_datastream ()
             "Thing": {"@iot.id": "\$thingEnv"},
             "Sensor": {
                 "name": "Environment Sensor",
-                "description": "This sensor produces temperature, humidity and pressure",
+                "description": "This sensor produces temperature, humidity, pressure and luminance",
                 "encodingType": "text/html",
                 "metadata": "https://google.de",
                 "properties": {"calibrated": "$NOW"}
             },
             "ObservedProperties": [
                 {
-                    "name": "DegC",
+                    "name": "Air temperature",
                     "definition": "https://en.wikipedia.org/wiki/Temperature",
                     "description": "Air Temperature in Celcius"
                 },
                 {
-                    "name": "Relative Air Humidity",
+                    "name": "Air humidity",
                     "definition": "https://en.wikipedia.org/wiki/Humidity",
-                    "description": "Air Humidity"
+                    "description": "Relative Air Humidity"
                 },
                 {
                     "description": "Atmospheric pressure",
                     "definition": "https://en.wikipedia.org/wiki/Atmospheric_pressure",
-                    "name": "Atmospheric pressure"
+                    "name": "Atmospheric Pressure"
                 },
                 {
                     "description": "Luminance",
@@ -827,7 +827,8 @@ feeder ()
     local datetime=$(echo $data|jq -r '.GPS_TIME.value'|sed 's/;/:/g');
     logger datetime=$datetime;
     if [ -n "$datetime" ]; then
-        local phenomenonTime=$now
+	local systime=$(echo $data|jq -r '.system_time.value');
+        local phenomenonTime=$(date -d@"$systime" +"%Y-%m-%dT%H:%M:%SZ");
     else
         local datex=$(echo $datetime|cut -d" " -f2|sed 's/\./ /g');
         date=$(echo -n $datex|cut -d" " -f3)-$(echo -n $datex|cut -d" " -f2)-$(echo -n $datex|cut -d" " -f1);
@@ -889,10 +890,13 @@ EOF
     else
         logger "...done";
     fi;
-    local frames=$(ffmpeg -i $mp4_file -map 0:v:0 -c copy -f null -y /dev/null 2>&1 | grep -Eo 'frame= *[0-9]+ *' | grep -Eo '[0-9]+' | tail -1);
-    local frame=$(expr $frames / 2);
-    # create the PNG for species detection
-    ffmpeg -i $mp4_file -vf "select=eq(n\,$frame)" -vframes 1 $png_file -y 2> /dev/null;
+    if [ -z "$png_file" ]; then
+        local frames=$(ffmpeg -i $mp4_file -map 0:v:0 -c copy -f null -y /dev/null 2>&1 | grep -Eo 'frame= *[0-9]+ *' | grep -Eo '[0-9]+' | tail -1);
+        local frame=$(expr $frames / 2);
+        # create the PNG for species detection
+        ffmpeg -i $mp4_file -vf "select=eq(n\,$frame)" -vframes 1 $png_file -y 2> /dev/null;
+    fi
+    logger png_file="$png_file";
     local observation=$(curl -s $STA_URL/Observations?\$filter=parameters/id%20eq%20%27$obs_camera_id%27);
     local obs_camera_id=$(echo $observation|jq -r '.value[]."@iot.id"'|head -1| tr -d '\n');
     logger obs_camera_id=$obs_camera_id;
@@ -901,7 +905,7 @@ EOF
     local obs_media_url=$(echo $observation|jq -r '.value[]."result"'|head -1| tr -d '\n');
     logger obs_media_url=$obs_media_url;
     local responses=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" --connect-timeout 10 --form "file=@$png_file;type=image/png" --form "url=\"$obs_media_url\"" https://cos4cloud.demo.secure-dimensions.de/species-prediction/index.php);
-
+    logger responses="$responses";
 
     local relations="";
     local obs_ids="";
